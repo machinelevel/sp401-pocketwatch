@@ -4,14 +4,19 @@ from ej_outer_tooth_shapes import outer_tooth_shapes_p10
 # Global scale values
 # All meassurements are in mm
 spur_tooth_pitch = 2.0
-geneva_tooth_pitch = 5.0
 tooth_rim_thickness = 0.4
 spur_thickness = 1.0
 geneva_thickness = 1.0
 platter_z = 4.0
-g_rotor_pin_radius = 0.5
-g_rotor_arm_length = 4.0
-g_rotor_hub_radius = 3.0
+geneva_outer_radius = 20.0
+planet_outer_ref_radius = 15.0
+geneva_teeth = 29
+geneva_outer_pitch = 2.0 * np.pi * geneva_outer_radius / geneva_teeth
+g_rotor_outset = geneva_outer_pitch * 0.2       # displacement from rim of G
+g_rotor_arm_length = np.sqrt((geneva_outer_pitch / 2.0) * (geneva_outer_pitch / 2.0) + g_rotor_outset * g_rotor_outset)
+g_rotor_hub_radius = g_rotor_arm_length * 0.6   # radius of the hub
+g_rotor_pin_radius = g_rotor_arm_length * 0.2   # radius of the driver pin
+g_rotor_shaft_radius = g_rotor_hub_radius * 0.1   # radius of the shaft
 
 """
       best_errors [0.0002094545855868546, 0.002124126164289919, 0.0020335698811777547, 0.00014134032982582312]
@@ -85,117 +90,110 @@ def get_outer_tooth_shape(num_teeth, pitch_ref):
     shape = [0.1 * pitch_ref * np.array([-vert[0], vert[1], 0.0]) for vert in original_shape]
     return shape
 
-def make_tooth_table(gear):
-    # https://en.wikipedia.org/wiki/Involute_gear
-    # Symbols from https://khkgears.net/new/gear_knowledge/gear_technical_reference/involute_gear_profile.html
-    num_teeth = gear['teeth']
-    pitch_ref = spur_tooth_pitch
+# def make_tooth_table(gear):
+#     # https://en.wikipedia.org/wiki/Involute_gear
+#     # Symbols from https://khkgears.net/new/gear_knowledge/gear_technical_reference/involute_gear_profile.html
+#     num_teeth = gear['teeth']
+#     pitch_ref = spur_tooth_pitch
 
-    p = pitch_ref
-    m = p / np.pi # Module is the unit size indicated in millimeter (mm)
-    ha = 1.0 * m # The distance between reference line and tooth tip
-    hf = 1.25 * m # The distance between reference line and tooth root
-    h = ha + hf # The distance between tooth tip and tooth root
-    hw = 2.0 * m # Depth of tooth meshed with the mating gear
-    c = 0.25 * m # The distance (clearance) between tooth root and the tooth tip of mating gear
-    rhof = 0.38 * m # The radius of curvature between tooth surface and the tooth root
-    rc = p * num_teeth / (2.0 * np.pi) # circular (reference) radius
-    ri = rc - hf # inner (root) radius
-    ro = rc + ha # outer (tip) radius
+#     p = pitch_ref
+#     m = p / np.pi # Module is the unit size indicated in millimeter (mm)
+#     ha = 1.0 * m # The distance between reference line and tooth tip
+#     hf = 1.25 * m # The distance between reference line and tooth root
+#     h = ha + hf # The distance between tooth tip and tooth root
+#     hw = 2.0 * m # Depth of tooth meshed with the mating gear
+#     c = 0.25 * m # The distance (clearance) between tooth root and the tooth tip of mating gear
+#     rhof = 0.38 * m # The radius of curvature between tooth surface and the tooth root
+#     rc = p * num_teeth / (2.0 * np.pi) # circular (reference) radius
+#     ri = rc - hf # inner (root) radius
+#     ro = rc + ha # outer (tip) radius
 
-    gear['specs'] = {
-                     'pitch_ref':pitch_ref,
-                     'radius_ref':rc,
-                     'radius_inner':ri,
-                     'radius_outer':ro,
-                     }
-    face_segments = 10
-    pitch_theta = 2.0 * np.pi / num_teeth
-    print('num_teeth', num_teeth)
-    print('radius_ref', rc, 'radius_inner', ri, 'radius_outer', ro)
-    print('pitch_theta', pitch_theta)
-    print('')
-    in_theta = 0.0
-    ref_theta = get_involute_theta(rc, ri)
-    out_theta = get_involute_theta(ro, ri)
-    total_tooth_theta = 2.0 * np.pi / num_teeth
-    inner_flat_theta = 0.5 * total_tooth_theta - 2.0 * ref_theta
-    outer_flat_theta = 0.5 * total_tooth_theta - 2.0 * (out_theta - ref_theta)
-    print('ref_theta',ref_theta)
-    print('out_theta',out_theta)
-    print('inner_flat_theta',inner_flat_theta)
-    print('outer_flat_theta',outer_flat_theta)
-    print('total_tooth_theta',total_tooth_theta)
+#     gear['specs'] = {
+#                      'pitch_ref':pitch_ref,
+#                      'radius_ref':rc,
+#                      'radius_inner':ri,
+#                      'radius_outer':ro,
+#                      }
+#     face_segments = 10
+#     pitch_theta = 2.0 * np.pi / num_teeth
+#     print('num_teeth', num_teeth)
+#     print('radius_ref', rc, 'radius_inner', ri, 'radius_outer', ro)
+#     print('pitch_theta', pitch_theta)
+#     print('')
+#     in_theta = 0.0
+#     ref_theta = get_involute_theta(rc, ri)
+#     out_theta = get_involute_theta(ro, ri)
+#     total_tooth_theta = 2.0 * np.pi / num_teeth
+#     inner_flat_theta = 0.5 * total_tooth_theta - 2.0 * ref_theta
+#     outer_flat_theta = 0.5 * total_tooth_theta - 2.0 * (out_theta - ref_theta)
+#     print('ref_theta',ref_theta)
+#     print('out_theta',out_theta)
+#     print('inner_flat_theta',inner_flat_theta)
+#     print('outer_flat_theta',outer_flat_theta)
+#     print('total_tooth_theta',total_tooth_theta)
 
-    tooth_curve_segments = 10
-    # tc_radius1 = []
-    # tc_theta1  = []
-    # for i in range(tooth_curve_segments):
-    #     t = float(i) / tooth_curve_segments
-    #     r = (rc - ri) * t + ri
-    #     theta = get_involute_theta(r, ri)
-    #     tc_radius1.append(r)
-    #     tc_theta1.append(theta)
-    # tc_radius2 = []
-    # tc_theta2  = []
-    # for i in range(tooth_curve_segments):
-    #     t = float(i) / tooth_curve_segments
-    #     r = (ro - rc) * t + rc
-    #     theta = get_involute_theta(r, ri)
-    #     tc_radius2.append(r)
-    #     tc_theta2.append(theta)
-    result_theta = []
-    result_radius = []
-    # Inner flat
-    theta_start = 0.0
-    for i in range(tooth_curve_segments):
-        t = float(i) / tooth_curve_segments
-        theta = inner_flat_theta * t
-        result_theta.append(theta + theta_start)
-        result_radius.append(ri)
-    theta_start += inner_flat_theta
-    # Tooth rise
-    for i in range(tooth_curve_segments):
-        t = float(i) / tooth_curve_segments
-        r = (ro - ri) * t + ri
-        theta = get_involute_theta(r, ri)
-        result_theta.append(theta + theta_start)
-        result_radius.append(r)
-    theta_start += out_theta
-    # Outer flat
-    for i in range(tooth_curve_segments):
-        t = float(i) / tooth_curve_segments
-        theta = outer_flat_theta * t
-        result_theta.append(theta + theta_start)
-        result_radius.append(ro)
-    theta_start += outer_flat_theta
-    # Tooth fall
-    for i in range(tooth_curve_segments):
-        t = float(i) / tooth_curve_segments
-        r = (ro - ri) * (1.0 - t) + ri
-        theta = get_involute_theta(r, ri)
-        result_theta.append((out_theta - theta) + theta_start)
-        result_radius.append(r)
+#     tooth_curve_segments = 10
+#     # tc_radius1 = []
+#     # tc_theta1  = []
+#     # for i in range(tooth_curve_segments):
+#     #     t = float(i) / tooth_curve_segments
+#     #     r = (rc - ri) * t + ri
+#     #     theta = get_involute_theta(r, ri)
+#     #     tc_radius1.append(r)
+#     #     tc_theta1.append(theta)
+#     # tc_radius2 = []
+#     # tc_theta2  = []
+#     # for i in range(tooth_curve_segments):
+#     #     t = float(i) / tooth_curve_segments
+#     #     r = (ro - rc) * t + rc
+#     #     theta = get_involute_theta(r, ri)
+#     #     tc_radius2.append(r)
+#     #     tc_theta2.append(theta)
+#     result_theta = []
+#     result_radius = []
+#     # Inner flat
+#     theta_start = 0.0
+#     for i in range(tooth_curve_segments):
+#         t = float(i) / tooth_curve_segments
+#         theta = inner_flat_theta * t
+#         result_theta.append(theta + theta_start)
+#         result_radius.append(ri)
+#     theta_start += inner_flat_theta
+#     # Tooth rise
+#     for i in range(tooth_curve_segments):
+#         t = float(i) / tooth_curve_segments
+#         r = (ro - ri) * t + ri
+#         theta = get_involute_theta(r, ri)
+#         result_theta.append(theta + theta_start)
+#         result_radius.append(r)
+#     theta_start += out_theta
+#     # Outer flat
+#     for i in range(tooth_curve_segments):
+#         t = float(i) / tooth_curve_segments
+#         theta = outer_flat_theta * t
+#         result_theta.append(theta + theta_start)
+#         result_radius.append(ro)
+#     theta_start += outer_flat_theta
+#     # Tooth fall
+#     for i in range(tooth_curve_segments):
+#         t = float(i) / tooth_curve_segments
+#         r = (ro - ri) * (1.0 - t) + ri
+#         theta = get_involute_theta(r, ri)
+#         result_theta.append((out_theta - theta) + theta_start)
+#         result_radius.append(r)
 
 
-    return[result_theta, result_radius]
+#     return[result_theta, result_radius]
 
-def get_involute_theta(radius, root_radius):
-    alpha = np.arccos(root_radius / radius)
-    involute_alpha = np.tan(alpha) - alpha
-    return np.arcsin(involute_alpha)
+# def get_involute_theta(radius, root_radius):
+#     alpha = np.arccos(root_radius / radius)
+#     involute_alpha = np.tan(alpha) - alpha
+#     return np.arcsin(involute_alpha)
 
 ####### This is *almost* right, but
 ####### the correect version can be found here: http://hessmer.org/gears/InvoluteSpurGearBuilder.html
 def build_one_spur(gear):
     num_teeth = gear['teeth']
-    pitch_ref = spur_tooth_pitch
-    gear['specs'] = {
-                     'pitch_ref':pitch_ref,
-                     'radius_ref':pitch_ref * num_teeth / (2.0 * np.pi),
-                     # 'radius_inner':ri,
-                     # 'radius_outer':ro,
-                     }
     specs = gear['specs']
     tooth_table2 = get_outer_tooth_shape(num_teeth, specs['pitch_ref'])
     num_verts = 2 * num_teeth * len(tooth_table2)
@@ -237,18 +235,53 @@ def build_one_spur(gear):
 
 def make_geneva_tooth_table(gear):
     num_teeth = gear['teeth']
-    pitch_ref = geneva_tooth_pitch
-    gear['specs'] = {
-                     'pitch_ref':pitch_ref,
-                     'radius_ref':pitch_ref * num_teeth / (2.0 * np.pi),
-                     'radius_inner':1.0,
-                     'radius_outer':2.0,
-                     }
+    pitch_ref = geneva_outer_pitch
     r = gear['specs']['radius_ref']
     total_tooth_theta = 2.0 * np.pi / num_teeth
-    tooth_segments = 20
-    result_theta = [total_tooth_theta * float(x) / float(tooth_segments) for x in range(tooth_segments)]
-    result_radius = [r]*tooth_segments
+    num_segments = 20
+    groove_bottom_radius = r - g_rotor_arm_length + g_rotor_outset
+#    groove_bottom_radius = r - 0.1
+    groove_half_width = g_rotor_pin_radius
+    groove_half_theta_inner = np.arctan(groove_half_width/groove_bottom_radius)
+    groove_half_theta_outer = np.arctan(groove_half_width/r)
+    result_radius = []
+    result_theta = []
+
+    # Curved groove bottom
+    small_curve_segs = 12
+    for seg in range(1, small_curve_segs):
+        t = float(seg) / float(small_curve_segs)
+        theta = np.radians(t * 90)
+        x = g_rotor_pin_radius * np.sin(theta)
+        y = groove_bottom_radius - g_rotor_pin_radius * np.cos(theta)
+        result_radius += [y]
+        result_theta += [np.arctan(x/y)]
+
+    # Groove 1
+    result_radius += [groove_bottom_radius]
+    result_theta += [groove_half_theta_inner]
+    result_radius += [r]
+    result_theta += [groove_half_theta_outer]
+
+    # rotor hub span
+    span_segs = 30
+    d = g_rotor_outset + r
+    for sseg in range(1, span_segs):
+        sst = float(sseg) / float(span_segs)
+        seg_theta = sst * (0.5 * total_tooth_theta - groove_half_theta_outer) + groove_half_theta_outer
+        seg_radius = r
+        h = d * np.abs(np.sin(0.5 * total_tooth_theta - seg_theta))
+        if h < g_rotor_hub_radius:
+            new_r = d - np.sqrt(g_rotor_hub_radius * g_rotor_hub_radius - h * h)
+            if new_r < seg_radius:
+                seg_radius = new_r
+        result_radius += [seg_radius]
+        result_theta += [seg_theta]
+
+    # Replay everything in reverse
+    result_theta += [total_tooth_theta - t for t in result_theta[::-1]]
+    result_radius += [r for r in result_radius[::-1]]
+
     return [result_theta, result_radius]
 
 def build_one_geneva(gear):
@@ -290,8 +323,8 @@ def build_one_geneva(gear):
             prev_outer_vert = verts[(outer_vert_index - 2 + num_verts) % num_verts]
             this_outer_vert = verts[outer_vert_index]
             next_outer_vert = verts[(outer_vert_index + 2) % num_verts]
-            d1 = prev_outer_vert - this_outer_vert
-            d2 = next_outer_vert - this_outer_vert
+            d1 = normalized(prev_outer_vert - this_outer_vert)
+            d2 = normalized(next_outer_vert - this_outer_vert)
             c = np.cross(d1, d2)
             inner_vert_dir = np.sign(c[2]) * normalized(d1 + d2)
             verts[inner_vert_index] = this_outer_vert + tooth_rim_thickness * inner_vert_dir
@@ -300,7 +333,7 @@ def build_one_geneva(gear):
 
 def build_one_rotor(gear):
     g_rotor_hub_inner_radius = 0.1 * g_rotor_hub_radius
-    num_segments = 400
+    num_segments = 100
     num_verts = 2 * num_segments
     verts = np.ndarray((num_verts, 3), dtype=np.float64)
     pin_verts = np.ndarray((num_verts, 3), dtype=np.float64)
@@ -413,6 +446,19 @@ def write_stl_platter(platter_name, file_name):
     # except:
     #     print('Unable to write file', file_name)
 
+def make_platter_specs(platter_name):
+    platter = all_platters[platter_name]
+    for gear_name,gear in platter['gears'].items():
+        pitch_ref = spur_tooth_pitch
+        gear['specs'] = {}
+        if gear['type'] == 'geneva':
+            gear['specs']['pitch_ref'] = geneva_outer_pitch
+            gear['specs']['radius_ref'] = geneva_outer_radius
+        elif gear['type'] == 'spur':
+            num_teeth = gear['teeth']
+            gear['specs']['pitch_ref'] = pitch_ref
+            gear['specs']['radius_ref'] = pitch_ref * num_teeth / (2.0 * np.pi)
+
 def build_one_platter(platter_name):
     platter = all_platters[platter_name]
     gearG  = platter['gears']['G']
@@ -424,6 +470,28 @@ def build_one_platter(platter_name):
     gearDa = platter['gears']['Da']
     gearDb = platter['gears']['Db']
     rotor = platter['gears']['Grotor']
+
+    dadb_current = gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref']
+    dadb_desired = gearG['specs']['radius_ref'] + g_rotor_outset
+    dadb_fix = dadb_desired / dadb_current
+    gearDa['specs']['radius_ref'] *= dadb_fix
+    gearDa['specs']['pitch_ref'] *= dadb_fix
+    gearDb['specs']['radius_ref'] *= dadb_fix
+    gearDb['specs']['pitch_ref'] *= dadb_fix
+
+    ring_current = gearPr['specs']['radius_ref']
+    ring_desired = planet_outer_ref_radius
+    ring_fix = ring_desired / ring_current
+    gearPr['specs']['radius_ref'] *= ring_fix
+    gearPr['specs']['pitch_ref'] *= ring_fix
+    gearPs['specs']['radius_ref'] *= ring_fix
+    gearPs['specs']['pitch_ref'] *= ring_fix
+    gearPp1['specs']['radius_ref'] *= ring_fix
+    gearPp1['specs']['pitch_ref'] *= ring_fix
+    gearPp2['specs']['radius_ref'] *= ring_fix
+    gearPp2['specs']['pitch_ref'] *= ring_fix
+    gearPp3['specs']['radius_ref'] *= ring_fix
+    gearPp3['specs']['pitch_ref'] *= ring_fix
 
     print('  Building platter {}'.format(platter_name))
     for gear_name,gear in platter['gears'].items():
@@ -453,6 +521,7 @@ def build_one_platter(platter_name):
 
 def build_all():
 
+    make_platter_specs('Venus')
     build_one_platter('Venus')
     write_stl_platter('Venus', './output/platter_venus.stl')
 
