@@ -3,9 +3,10 @@ from ej_outer_tooth_shapes import outer_tooth_shapes_p10
 
 # Global scale values
 # All meassurements are in mm
+spur_teeth_thickness = 1.0
+min_material_thickness = 0.4
 spur_tooth_pitch = 2.0
 tooth_rim_thickness = 0.4
-spur_thickness = 1.0
 geneva_thickness = 1.0
 platter_z = 4.0
 geneva_outer_radius = 20.0
@@ -57,8 +58,11 @@ all_platters = {
             'Pp1'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
             'Pp2'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
             'Pp3'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
+            'Pp4'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':31},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':38},
+            'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
+            'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
             'Grotor' :{'type':'rotor'},
         },
     },
@@ -231,6 +235,7 @@ def build_one_spur(gear):
             verts[inner_vert_index] = this_outer_vert + tooth_rim_thickness * inner_vert_dir
 #            verts[inner_vert_index] = this_outer_vert * 0.95
     gear['verts'] = [verts]
+    gear['verts_z'] = [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
     return verts
 
 def make_geneva_tooth_table(gear):
@@ -329,6 +334,7 @@ def build_one_geneva(gear):
             inner_vert_dir = np.sign(c[2]) * normalized(d1 + d2)
             verts[inner_vert_index] = this_outer_vert + tooth_rim_thickness * inner_vert_dir
     gear['verts'] = [verts]
+    gear['verts_z'] = [[-0.5 * min_material_thickness, 0.5 * min_material_thickness]]
     return verts
 
 def build_one_rotor(gear):
@@ -364,17 +370,19 @@ def build_one_rotor(gear):
         pin_verts[inner_vert_index][1] = inner_pin_radius * cval
         pin_verts[inner_vert_index][2] = 0.0
 
-        spur_thickness = 1.0
         outer_disc_radius = 2.0 * g_rotor_pin_radius + g_rotor_arm_length
         inner_disc_radius = g_rotor_hub_inner_radius
         disc_verts[outer_vert_index][0] = outer_disc_radius * sval
         disc_verts[outer_vert_index][1] = outer_disc_radius * cval
-        disc_verts[outer_vert_index][2] = -1.0 * spur_thickness
+        disc_verts[outer_vert_index][2] = 0.0
         disc_verts[inner_vert_index][0] = inner_disc_radius * sval
         disc_verts[inner_vert_index][1] = inner_disc_radius * cval
-        disc_verts[inner_vert_index][2] = -1.0 * spur_thickness
+        disc_verts[inner_vert_index][2] = 0.0
 
     gear['verts'] = [verts, pin_verts, disc_verts]
+    gear['verts_z'] = [[-1.0 * min_material_thickness, 1.0 * spur_teeth_thickness],
+                       [-1.0 * min_material_thickness, 1.0 * spur_teeth_thickness],
+                       [-1.5 * min_material_thickness, -0.5 * min_material_thickness]]
     return verts
 
 def normalized(v):
@@ -398,31 +406,32 @@ def write_one_quad(fp, v0, v1, v2, v3, n=None):
     fp.write('    endloop\n')
     fp.write('  endfacet\n')
 
-def write_stl_tristrip_quads(fp, verts, pos=None, rot=None, closed=True):
+def write_stl_tristrip_quads(fp, verts, verts_z, pos=None, rot=None, closed=True):
     if pos is None:
         pos = np.array([0,0,0])
     if rot is None:
         rot = 0.0
     sval = np.sin(rot)
     cval = np.cos(rot)
-    xverts = verts + pos
+    xverts = [np.array([v[0] * cval + v[1] * sval, v[1] * cval - v[0] * sval, v[2]]) for v in verts]
+    xverts = xverts + pos
     num_verts = len(verts)
     num_quads = num_verts >> 1
     if not closed:
         num_quads -= 1
-    spur_thickness = 1.0
-    gear_half_z = np.array([0.0, 0.0, 0.5 * spur_thickness])
+    z1 = np.array([0.0, 0.0, verts_z[0]])
+    z2m1 = np.array([0.0, 0.0, verts_z[1] - verts_z[0]])
     n_up = np.array([0.0, 0.0, 1])
     n_down = np.array([0.0, 0.0, -1])
     for quad in range(num_quads):
-        v0a = xverts[quad * 2] + gear_half_z
-        v1a = xverts[quad * 2 + 1] + gear_half_z
-        v2a = xverts[(quad * 2 + 2) % num_verts] + gear_half_z
-        v3a = xverts[(quad * 2 + 3) % num_verts] + gear_half_z
-        v0b = v0a - 2 * gear_half_z
-        v1b = v1a - 2 * gear_half_z
-        v2b = v2a - 2 * gear_half_z
-        v3b = v3a - 2 * gear_half_z
+        v0a = xverts[quad * 2] + z1
+        v1a = xverts[quad * 2 + 1] + z1
+        v2a = xverts[(quad * 2 + 2) % num_verts] + z1
+        v3a = xverts[(quad * 2 + 3) % num_verts] + z1
+        v0b = v0a + z2m1
+        v1b = v1a + z2m1
+        v2b = v2a + z2m1
+        v3b = v3a + z2m1
         write_one_quad(fp, v0a, v1a, v2a, v3a, n=n_up)
         write_one_quad(fp, v1b, v0b, v3b, v2b, n=n_down)
         write_one_quad(fp, v0b, v0a, v2b, v2a)
@@ -437,10 +446,11 @@ def write_stl_platter(platter_name, file_name):
         fp.write('solid OpenSCAD_Model\n')
         verts = gear.get('verts', None)
         if verts is not None:
-            for strip_verts in verts:
+            for strip_index,strip_verts in enumerate(verts):
                 pos = gear.get('pos', None)
                 rot = gear.get('rot', None)
-                write_stl_tristrip_quads(fp, strip_verts, pos=pos, rot=rot, closed=True)
+                verts_z = gear['verts_z'][strip_index]
+                write_stl_tristrip_quads(fp, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
         fp.write('endsolid OpenSCAD_Model\n')
     fp.close()
     # except:
@@ -451,6 +461,7 @@ def make_platter_specs(platter_name):
     for gear_name,gear in platter['gears'].items():
         pitch_ref = spur_tooth_pitch
         gear['specs'] = {}
+        gear['rings'] = []
         if gear['type'] == 'geneva':
             gear['specs']['pitch_ref'] = geneva_outer_pitch
             gear['specs']['radius_ref'] = geneva_outer_radius
@@ -459,6 +470,9 @@ def make_platter_specs(platter_name):
             gear['specs']['pitch_ref'] = pitch_ref
             gear['specs']['radius_ref'] = pitch_ref * num_teeth / (2.0 * np.pi)
 
+def tooth_theta(gear):
+    return 2.0 * np.pi / gear['teeth']
+
 def build_one_platter(platter_name):
     platter = all_platters[platter_name]
     gearG  = platter['gears']['G']
@@ -466,18 +480,25 @@ def build_one_platter(platter_name):
     gearPp1 = platter['gears']['Pp1']
     gearPp2 = platter['gears']['Pp2']
     gearPp3 = platter['gears']['Pp3']
+    gearPp4 = platter['gears']['Pp4']
     gearPs = platter['gears']['Ps']
     gearDa = platter['gears']['Da']
     gearDb = platter['gears']['Db']
+    gearDr1 = platter['gears']['Dr1']
+    gearDr2 = platter['gears']['Dr2']
     rotor = platter['gears']['Grotor']
 
-    dadb_current = gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref']
+    dadb_current = gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref'] + gearDr1['specs']['radius_ref'] + gearDr2['specs']['radius_ref']
     dadb_desired = gearG['specs']['radius_ref'] + g_rotor_outset
     dadb_fix = dadb_desired / dadb_current
     gearDa['specs']['radius_ref'] *= dadb_fix
     gearDa['specs']['pitch_ref'] *= dadb_fix
     gearDb['specs']['radius_ref'] *= dadb_fix
     gearDb['specs']['pitch_ref'] *= dadb_fix
+    gearDr1['specs']['radius_ref'] *= dadb_fix
+    gearDr1['specs']['pitch_ref'] *= dadb_fix
+    gearDr2['specs']['radius_ref'] *= dadb_fix
+    gearDr2['specs']['pitch_ref'] *= dadb_fix
 
     ring_current = gearPr['specs']['radius_ref']
     ring_desired = planet_outer_ref_radius
@@ -492,6 +513,8 @@ def build_one_platter(platter_name):
     gearPp2['specs']['pitch_ref'] *= ring_fix
     gearPp3['specs']['radius_ref'] *= ring_fix
     gearPp3['specs']['pitch_ref'] *= ring_fix
+    gearPp4['specs']['radius_ref'] *= ring_fix
+    gearPp4['specs']['pitch_ref'] *= ring_fix
 
     print('  Building platter {}'.format(platter_name))
     for gear_name,gear in platter['gears'].items():
@@ -502,22 +525,42 @@ def build_one_platter(platter_name):
             build_one_spur(gear)
         elif gtype == 'rotor':
             build_one_rotor(gear)
+    geneva_z = 0.0
+    planetary_z = geneva_z + 0.5 * min_material_thickness + 0.5 * spur_teeth_thickness
+    mini_driver_z = geneva_z - 2.0 * min_material_thickness - 0.5 * spur_teeth_thickness
+    mini_driver2_z = geneva_z - 1.5 * min_material_thickness - 0.5 * spur_teeth_thickness
+    driver_z = mini_driver_z - 1.0 * spur_teeth_thickness - 0.0 * min_material_thickness
     gearG['pos'] = np.array([0.0, 0.0, 0.0])
-    gearPs['pos'] = np.array([0.0, 0.0, platter_z])
-    gearPr['pos'] = np.array([0.0, 0.0, platter_z])
+    gearG['rot'] = 0.5 * tooth_theta(gearG)
+    gearPs['pos'] = np.array([0.0, 0.0, planetary_z])
+    gearPr['pos'] = np.array([0.0, 0.0, planetary_z])
+    gearPr['rot'] = 0.5 * tooth_theta(gearPr)
     disp = gearPs['specs']['radius_ref'] + gearPp1['specs']['radius_ref']
-    sval = np.sin(0)
-    cval = np.cos(0)
-    gearPp1['pos'] = np.array([disp * cval, disp * sval, platter_z])
-    sval = np.sin(np.radians(120))
-    cval = np.cos(np.radians(120))
-    gearPp2['pos'] = np.array([disp * cval, disp * sval, platter_z])
-    sval = np.sin(np.radians(240))
-    cval = np.cos(np.radians(240))
-    gearPp3['pos'] = np.array([disp * cval, disp * sval, platter_z])
-    gearDa['pos'] = np.array([0.0, 0.0, -platter_z])
-    gearDb['pos'] = np.array([0.0, gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref'], -platter_z])
-    rotor['pos'] = np.array([gearDb['pos'][0], gearDb['pos'][1], gearG['pos'][2]])
+    theta = 90
+    sval = np.sin(np.radians(theta))
+    cval = np.cos(np.radians(theta))
+    gearPp1['pos'] = np.array([disp * cval, disp * sval, planetary_z])
+    gearPp1['rot'] = 0.5 * tooth_theta(gearPp1)
+    theta += 90
+    sval = np.sin(np.radians(theta))
+    cval = np.cos(np.radians(theta))
+    gearPp2['pos'] = np.array([disp * cval, disp * sval, planetary_z])
+    theta += 90
+    sval = np.sin(np.radians(theta))
+    cval = np.cos(np.radians(theta))
+    gearPp3['pos'] = np.array([disp * cval, disp * sval, planetary_z])
+    gearPp3['rot'] = 0.5 * tooth_theta(gearPp3)
+    theta += 90
+    sval = np.sin(np.radians(theta))
+    cval = np.cos(np.radians(theta))
+    gearPp4['pos'] = np.array([disp * cval, disp * sval, planetary_z])
+    gearDa['pos'] = np.array([0.0, 0.0, driver_z])
+    gearDb['pos'] = np.array([0.0, gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref'], driver_z])
+    gearDb['rot'] = 0.5 * tooth_theta(gearDb)
+    gearDr1['pos'] = np.array([gearDb['pos'][0], gearDb['pos'][1], mini_driver_z])
+    gearDr2['pos'] = np.array([0.0, gearDr1['pos'][1] + gearDr1['specs']['radius_ref'] + gearDr2['specs']['radius_ref'], mini_driver2_z])
+    gearDr2['rot'] = 0.5 * tooth_theta(gearDr2)
+    rotor['pos'] = np.array([gearDr2['pos'][0], gearDr2['pos'][1], gearG['pos'][2]])
 
 def build_all():
 
