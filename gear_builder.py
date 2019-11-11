@@ -49,7 +49,9 @@ all_platters = {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':29},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':14},
             'Pr'     :{'type':'spur',   'inout':'out', 'teeth':38, 'outer_ring':1},
-            'Pp'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
+            'Pp1'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
+            'Pp2'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
+            'Pp3'     :{'type':'spur',   'inout':'out', 'teeth':(38-14)>>1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':31},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':38},
             'Grotor' :{'type':'rotor'},
@@ -415,7 +417,9 @@ def build_one_platter(platter_name):
     platter = all_platters[platter_name]
     gearG  = platter['gears']['G']
     gearPr = platter['gears']['Pr']
-    gearPp = platter['gears']['Pp']
+    gearPp1 = platter['gears']['Pp1']
+    gearPp2 = platter['gears']['Pp2']
+    gearPp3 = platter['gears']['Pp3']
     gearPs = platter['gears']['Ps']
     gearDa = platter['gears']['Da']
     gearDb = platter['gears']['Db']
@@ -433,7 +437,16 @@ def build_one_platter(platter_name):
     gearG['pos'] = np.array([0.0, 0.0, 0.0])
     gearPs['pos'] = np.array([0.0, 0.0, platter_z])
     gearPr['pos'] = np.array([0.0, 0.0, platter_z])
-    gearPp['pos'] = np.array([gearPs['specs']['radius_ref'] + gearPp['specs']['radius_ref'], 0.0, platter_z])
+    disp = gearPs['specs']['radius_ref'] + gearPp1['specs']['radius_ref']
+    sval = np.sin(0)
+    cval = np.cos(0)
+    gearPp1['pos'] = np.array([disp * cval, disp * sval, platter_z])
+    sval = np.sin(np.radians(120))
+    cval = np.cos(np.radians(120))
+    gearPp2['pos'] = np.array([disp * cval, disp * sval, platter_z])
+    sval = np.sin(np.radians(240))
+    cval = np.cos(np.radians(240))
+    gearPp3['pos'] = np.array([disp * cval, disp * sval, platter_z])
     gearDa['pos'] = np.array([0.0, 0.0, -platter_z])
     gearDb['pos'] = np.array([0.0, gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref'], -platter_z])
     rotor['pos'] = np.array([gearDb['pos'][0], gearDb['pos'][1], gearG['pos'][2]])
