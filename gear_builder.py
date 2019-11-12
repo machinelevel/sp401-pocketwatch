@@ -64,6 +64,8 @@ all_platters = {
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
             'Grotor' :{'type':'rotor'},
+            'feet'   :{'type':'feet'},
+            'shaft'  :{'type':'shaft'},
         },
     },
     'Mars': {
@@ -470,6 +472,59 @@ def make_platter_specs(platter_name):
             gear['specs']['pitch_ref'] = pitch_ref
             gear['specs']['radius_ref'] = pitch_ref * num_teeth / (2.0 * np.pi)
 
+def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=None):
+    if num_segments is None:
+        num_segments = 100
+    num_verts = 2 * num_segments
+    verts = np.ndarray((num_verts, 3), dtype=np.float64)
+
+    for seg in range(num_segments):
+        t = float(seg) / float(num_segments)
+        theta = t * 2.0 * np.pi
+        sval = np.sin(theta)
+        cval = np.cos(theta)
+        outer_vert_index = seg*2
+        inner_vert_index = outer_vert_index + 1
+        verts[outer_vert_index][0] = outer_radius * sval
+        verts[outer_vert_index][1] = outer_radius * cval
+        verts[outer_vert_index][2] = 0.0
+        verts[inner_vert_index][0] = inner_radius * sval
+        verts[inner_vert_index][1] = inner_radius * cval
+        verts[inner_vert_index][2] = 0.0
+
+        if center is not None:
+            verts[outer_vert_index] += center
+            verts[inner_vert_index] += center
+    return verts
+
+def make_platter_supports(platter_name):
+    platter = all_platters[platter_name]
+    strut_outer_radius = 1.0
+    feet = platter['gears']['feet']
+    shaft = platter['gears']['shaft']
+    gearDa = platter['gears']['Da']
+    strut_inner_radius = strut_outer_radius - min_material_thickness
+    foot_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
+    r2 = 1.0 / np.sqrt(2.0)
+    fd = (gearDa['specs']['radius_ref'] + 0 * strut_outer_radius)
+    sd = r2 * (gearDa['specs']['radius_ref'] - 1.5 * strut_outer_radius)
+    foot_offsets = [np.array([-1, -1, 0.0]),
+                    np.array([ 1, -1, 0.0]),
+                    np.array([-1,  1, 0.0]),
+                    np.array([ 1,  1, 0.0])]
+    feet['verts'] = []
+    feet['verts_z'] = []
+    shaft['verts'] = []
+    shaft['verts_z'] = []
+    for gear_name,gear in platter['gears'].items():
+        if gear['type'] == 'feet':
+            for foot_index in range(4):
+                feet['verts'].append(foot_verts + fd * foot_offsets[foot_index])
+                feet['verts_z'].append([gearDa['pos'][2] - 1.0, gearDa['pos'][2] + 1.0])
+                shaft['verts'].append(foot_verts + sd * foot_offsets[foot_index])
+                shaft['verts_z'].append([gearDa['pos'][2] - 1.0, gearDa['pos'][2] + 1.0])
+
+
 def tooth_theta(gear):
     return 2.0 * np.pi / gear['teeth']
 
@@ -561,6 +616,8 @@ def build_one_platter(platter_name):
     gearDr2['pos'] = np.array([0.0, gearDr1['pos'][1] + gearDr1['specs']['radius_ref'] + gearDr2['specs']['radius_ref'], mini_driver2_z])
     gearDr2['rot'] = 0.5 * tooth_theta(gearDr2)
     rotor['pos'] = np.array([gearDr2['pos'][0], gearDr2['pos'][1], gearG['pos'][2]])
+    make_platter_supports(platter_name)
+
 
 def build_all():
 
