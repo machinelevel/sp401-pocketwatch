@@ -52,9 +52,9 @@ all_platters = {
     'Mars': {
         'use_dual_drive': False,
         'pos': [0.0, 0.0, -1 * each_platter_z],
-        'planetary_mult': 2,
+        'planetary_mult': 1,
         'scale_geneva': 1.0,
-        'scale_planetary': 1.4,
+        'scale_planetary': 2.4,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':28},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19},
@@ -90,9 +90,9 @@ all_platters = {
     'Venus': {
         'use_dual_drive': False,
         'pos': [0.0, 0.0, 1 * each_platter_z],
-        'planetary_mult': 2,
+        'planetary_mult': 1,
         'scale_geneva': 1.0,
-        'scale_planetary': 1.3,
+        'scale_planetary': 2.3,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':29},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':14},
@@ -740,19 +740,31 @@ def build_one_platter(platter_name):
     gearPs['pos'] = np.array([0.0, 0.0, planetary_z])
     if gearPr:
         gearPr['pos'] = np.array([0.0, 0.0, planetary_z])
-        gearPr['rot'] = 0.5 * tooth_theta(gearPr)
-    for p in gearPp:
+        # gearPr['rot'] = 0.5 * tooth_theta(gearPr)
+        gearPr['rot'] = 0.0
+        if (gearPp[0]['teeth'] & 1) == 0:
+            gearPr['rot'] = 0.5 * tooth_theta(gearPr)
+    for pi,p in enumerate(gearPp):
         disp = gearPs['specs']['radius_ref'] + p['specs']['radius_ref']
-        theta = 0.5 * np.pi + p['p_placement'][0]
+        theta = p['p_placement'][0]
+        # theta = 0
+        rot = theta * float(gearPs['teeth']) / float(p['teeth'])
+        if (p['teeth'] & 1) == 0:
+            rot += 0.5 * tooth_theta(p)
+        # hack special cases
+        if platter_name == 'Mars' and pi == 1:
+            rot += 0.5 * tooth_theta(p)
+        # rot = 0
         sval = np.sin(theta)
         cval = np.cos(theta)
-        p['pos'] = np.array([disp * cval, disp * sval, planetary_z])
-        p['rot'] = theta - 0.5 * np.pi + ((1 + p['p_placement'][1] + p['teeth']) & 1) * 0.5 * tooth_theta(p)
+        p['pos'] = np.array([disp * sval, disp * cval, planetary_z])
+        p['rot'] = rot
 
     if gearDa:
         gearDa['pos'] = np.array([0.0, 0.0, driver_z])
         gearDb['pos'] = np.array([0.0, gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref'], driver_z])
-        gearDb['rot'] = 0.5 * tooth_theta(gearDb)
+        if (gearDb['teeth'] & 1) == 0:
+            gearDb['rot'] = 0.5 * tooth_theta(gearDb)
         if dual_drive:
             gearDr1['pos'] = np.array([gearDb['pos'][0], gearDb['pos'][1], mini_driver_z])
             gearDr2['pos'] = np.array([0.0, gearDr1['pos'][1] + gearDr1['specs']['radius_ref'] + gearDr2['specs']['radius_ref'], mini_driver2_z])
