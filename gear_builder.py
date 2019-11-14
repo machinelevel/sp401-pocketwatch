@@ -40,10 +40,11 @@ all_platters = {
         'planetary_mult': 1,
         'scale_geneva': 1.0,
         'scale_planetary': 1.7,
+        'rings_under_planets':True,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':27},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':13},
-            'Pr'     :{'type':'spur',   'inout':'out', 'teeth':29, 'outer_ring':1},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':29, 'outer_rail':1},
             'Grotor' :{'type':'rotor'},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
@@ -55,10 +56,11 @@ all_platters = {
         'planetary_mult': 1,
         'scale_geneva': 1.0,
         'scale_planetary': 2.4,
+        'rings_under_planets':True,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':28},
-            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19},
-            'Pr'     :{'type':'spur',   'inout':'out', 'teeth':37, 'outer_ring':1},
+            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':0},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
@@ -76,7 +78,7 @@ all_platters = {
         'scale_planetary': 1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':7},
-            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':30},
+            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':30, 'inner_rail':0},
             'Pp0'    :{'type':'spur',   'inout':'out', 'teeth':37, 'p_placement':(0.0 * np.pi, 0)},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':23},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':13},
@@ -93,10 +95,11 @@ all_platters = {
         'planetary_mult': 1,
         'scale_geneva': 1.0,
         'scale_planetary': 2.3,
+        'rings_under_planets':True,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':29},
-            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':14},
-            'Pr'     :{'type':'spur',   'inout':'out', 'teeth':38, 'outer_ring':1},
+            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':14, 'inner_rail':0},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':38, 'outer_rail':1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':31},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':38},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
@@ -112,10 +115,11 @@ all_platters = {
         'planetary_mult': 1,
         'scale_geneva': 1.0,
         'scale_planetary': 2.0,
+        'rings_under_planets':True,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':13},
-            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':21},
-            'Pr'     :{'type':'spur',   'inout':'out', 'teeth':39, 'outer_ring':1},
+            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':21, 'inner_rail':0},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':39, 'outer_rail':1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':29},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':23},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(23 * 0.33)},
@@ -273,7 +277,7 @@ def build_one_spur(gear):
             verts[outer_vert_index][1] = ty * cval - tx * sval
             verts[outer_vert_index][2] = 0.0
 
-    outer_mult = -1.0 if gear.get('outer_ring', 0) else 1.0
+    outer_mult = -1.0 if (gear.get('inout') == 'in') else 1.0
     # Inner verts
     for tooth in range(num_teeth):
         tooth_vert_index = 2 * tooth * len(tooth_table2)
@@ -291,6 +295,30 @@ def build_one_spur(gear):
 #            verts[inner_vert_index] = this_outer_vert * 0.95
     gear['verts'] = [verts]
     gear['verts_z'] = [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
+    if gear.get('outer_rail', None):
+        rail_in = gear['specs']['radius_outer'] + 0.5 * min_material_thickness
+        rail_out1 = rail_in + 1 * min_material_thickness
+        rail_out2 = rail_in + 2 * min_material_thickness
+        gear['verts'] += [make_cylinder_verts(rail_in, rail_out1)]
+        gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
+        # gear['verts'] += [make_cylinder_verts(rail_in, rail_out2)]
+        # gear['verts_z'] += [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
+
+    if gear['inout'] == 'out':
+        if gear.get('inner_rail', 1):
+            rail_out = gear['specs']['radius_inner'] - 0.5 * min_material_thickness
+            rail_in = rail_out - min_material_thickness
+            gear['verts'] += [make_cylinder_verts(rail_in, rail_out)]
+            gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
+
+    if gear.get('ring_under', None) is not None:
+        rail_out = gear['specs']['radius_outer'] + 0.5 * min_material_thickness
+        rail_in = rail_out - min_material_thickness
+        rail_top = -0.5 * spur_teeth_thickness + 0.5 * min_material_thickness
+        rail_bottom = rail_top - min_material_thickness
+        gear['verts'] += [make_cylinder_verts(rail_in, rail_out)]
+        gear['verts_z'] += [[rail_bottom, rail_top]]
+
     return verts
 
 def make_geneva_tooth_table(gear, rotor):
@@ -568,6 +596,11 @@ def make_platter_specs(platter_name):
             p['specs']['pitch_ref'] = sun['specs']['pitch_ref']
             p['specs']['radius_ref'] = p['specs']['pitch_ref'] * p['teeth'] / (2.0 * np.pi)
             p['p_placement'] = nook
+            inner,outer = get_outer_tooth_inner_outer(p['teeth'], p['specs']['pitch_ref'])
+            p['specs']['radius_inner'] = inner
+            p['specs']['radius_outer'] = outer
+            if platter.get('rings_under_planets', 0):
+                p['ring_under'] = 1
             platter['gears']['Pp{}'.format(i)] = p
 
 
