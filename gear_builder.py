@@ -23,6 +23,9 @@ each_platter_z = tooth_rim_thickness * 42.0
 geneva_outer_radius = 20.0
 planet_outer_ref_radius = 15.0
 
+strut_outer_radius = 1.0
+strut_inner_radius = strut_outer_radius - min_material_thickness
+
 """
       best_errors [0.0002094545855868546, 0.002124126164289919, 0.0020335698811777547, 0.00014134032982582312]
       best_ratios [231.75420417869884, 1167.8433179723504, 1559.8970466919648, 59.061319340329824]
@@ -629,14 +632,23 @@ def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=No
             verts[inner_vert_index] += center
     return verts
 
+def make_gear_hub_foot(platter_name, gear, base_z):
+    platter = all_platters[platter_name]
+    strut_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
+    strut_pos = np.array([gear['pos'][0], gear['pos'][1], 0.0])
+    strut_top = gear['pos'][2]
+    strut_bottom = base_z
+    feet = platter['gears']['feet']
+    feet['verts'].append(strut_verts + strut_pos)
+    feet['verts_z'].append([strut_bottom, strut_top])
+
+
 def make_platter_supports(platter_name):
     platter = all_platters[platter_name]
-    strut_outer_radius = 1.0
     feet = platter['gears']['feet']
     shaft = platter['gears']['shaft']
     gearDa = platter['gears'].get('Da', None)
     gearPs = platter['gears'].get('Ps', None)
-    strut_inner_radius = strut_outer_radius - min_material_thickness
     foot_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
     r2 = 1.0 / np.sqrt(2.0)
     if gearDa:
@@ -654,15 +666,22 @@ def make_platter_supports(platter_name):
     feet['verts_z'] = []
     shaft['verts'] = []
     shaft['verts_z'] = []
+
+    base_z = all_platters['Drive']['pos'][2] - 3.0 * spur_teeth_thickness
     for gear_name,gear in platter['gears'].items():
-        if gear['type'] == 'feet':
-            for foot_index in range(4):
-                feet['verts'].append(foot_verts + fd * foot_offsets[foot_index])
-                feet['verts_z'].append([shaft_gear['pos'][2] - 1.0, shaft_gear['pos'][2] + 1.0])
-                feet['verts'].append(foot_verts + f2d * foot_offsets[foot_index])
-                feet['verts_z'].append([gearPs['pos'][2] - 1.0, gearPs['pos'][2] + 1.0])
-                shaft['verts'].append(foot_verts + sd * foot_offsets[foot_index])
-                shaft['verts_z'].append([shaft_gear['pos'][2] - 1.0, shaft_gear['pos'][2] + 1.0])
+        if gear_name in ['Pp0', 'Pp1', 'Pp2', 'Pp3', 'Db']:
+            make_gear_hub_foot(platter_name, gear, base_z - platter['pos'][2])
+
+    if 0:
+        for gear_name,gear in platter['gears'].items():
+            if gear['type'] == 'feet':
+                for foot_index in range(4):
+                    feet['verts'].append(foot_verts + fd * foot_offsets[foot_index])
+                    feet['verts_z'].append([shaft_gear['pos'][2] - 1.0, shaft_gear['pos'][2] + 1.0])
+                    feet['verts'].append(foot_verts + f2d * foot_offsets[foot_index])
+                    feet['verts_z'].append([gearPs['pos'][2] - 1.0, gearPs['pos'][2] + 1.0])
+                    shaft['verts'].append(foot_verts + sd * foot_offsets[foot_index])
+                    shaft['verts_z'].append([shaft_gear['pos'][2] - 1.0, shaft_gear['pos'][2] + 1.0])
 
 
 def tooth_theta(gear):
