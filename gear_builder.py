@@ -13,19 +13,19 @@ from ej_outer_tooth_shapes import outer_tooth_shapes_p10
 # Global scale values
 # All meassurements are in mm
 strut_outer_radius = 1.0
-thinnest_material_wall = 0.8
+thinnest_material_wall = 0.4
 spur_teeth_thickness = thinnest_material_wall
 min_material_thickness = 0.4
 slide_buffer_dist = 0.1
 spur_tooth_pitch = 2.0
 tooth_rim_thickness = 0.4
 geneva_thickness = 1.0
-each_platter_z = tooth_rim_thickness * 8.0
+each_platter_z = tooth_rim_thickness * 2 * 4.0
 geneva_outer_radius = 20.0
 planet_outer_ref_radius = 15.0
 
 strut_outer_radius = 1.0
-strut_inner_radius = strut_outer_radius - min_material_thickness
+strut_inner_radius = strut_outer_radius - thinnest_material_wall
 
 """
       best_errors [0.0002094545855868546, 0.002124126164289919, 0.0020335698811777547, 0.00014134032982582312]
@@ -43,10 +43,11 @@ all_platters = {
         'pos': [0.0, 0.0, -2 * each_platter_z],
         'planetary_mult': 1,
         'scale_geneva': 1.0,
-        'scale_planetary': 1.7,
+        'scale_planetary': 1.73,
         'rings_under_planets':True,
         'support_platter':None,
-        'rotor_azimuth':90,
+        'rotor_azimuth':-90,
+        'scale_base_ring_radius':1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':27},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':13},
@@ -65,12 +66,13 @@ all_platters = {
         'rings_under_planets':True,
         'support_platter':None,
         'rotor_azimuth':-90,
+        'scale_base_ring_radius':1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':28},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':0},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
-            'Db'     :{'type':'spur',   'inout':'out', 'teeth':26},
+            'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
             'Grotor' :{'type':'rotor'},
@@ -86,12 +88,13 @@ all_platters = {
         'scale_planetary': 1.0,
         'support_platter':None,
         'rotor_azimuth':180,
+        'scale_base_ring_radius':1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':7*2},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':30, 'inner_rail':0},
-            'Pp0'    :{'type':'spur',   'inout':'out', 'teeth':37, 'p_placement':(0.0 * np.pi, 0)},
+            'Pp0'    :{'type':'spur',   'inout':'out', 'teeth':37, 'p_placement':(0.0 * np.pi, 0), 'roll_to':(90, 'Ps')},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':23*2},
-            'Db'     :{'type':'spur',   'inout':'out', 'teeth':13},
+            'Db'     :{'type':'spur',   'inout':'out', 'teeth':13, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(13 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(13 * 0.33)},
             'Grotor' :{'type':'rotor'},
@@ -108,12 +111,13 @@ all_platters = {
         'rings_under_planets':True,
         'support_platter':'Luna',
         'rotor_azimuth':45,
+        'scale_base_ring_radius':1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':29},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':14, 'inner_rail':0},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':38, 'outer_rail':1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':31},
-            'Db'     :{'type':'spur',   'inout':'out', 'teeth':38},
+            'Db'     :{'type':'spur',   'inout':'out', 'teeth':38, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
             'Grotor' :{'type':'rotor'},
@@ -130,12 +134,13 @@ all_platters = {
         'rings_under_planets':True,
         'support_platter':'Venus',
         'rotor_azimuth':60,
+        'scale_base_ring_radius':1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':13},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':21, 'inner_rail':0},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':39, 'outer_rail':1},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':29},
-            'Db'     :{'type':'spur',   'inout':'out', 'teeth':23},
+            'Db'     :{'type':'spur',   'inout':'out', 'teeth':23, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(23 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(23 * 0.33)},
             'Grotor' :{'type':'rotor'},
@@ -318,9 +323,9 @@ def build_one_spur(gear):
     gear['verts'] = [verts]
     gear['verts_z'] = [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
     if gear.get('outer_rail', None):
-        rail_in = gear['specs']['radius_outer'] + 0.5 * min_material_thickness
-        rail_out1 = rail_in + 1 * min_material_thickness
-        rail_out2 = rail_in + 2 * min_material_thickness
+        rail_in = gear['specs']['radius_outer'] + 0.5 * thinnest_material_wall
+        rail_out1 = rail_in + 1 * thinnest_material_wall
+        rail_out2 = rail_in + 2 * thinnest_material_wall
         gear['verts'] += [make_cylinder_verts(rail_in, rail_out1)]
         gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
         # gear['verts'] += [make_cylinder_verts(rail_in, rail_out2)]
@@ -328,16 +333,17 @@ def build_one_spur(gear):
 
     if gear['inout'] == 'out':
         if gear.get('inner_rail', 1):
-            rail_out = gear['specs']['radius_inner'] - 0.5 * min_material_thickness
-            rail_in = rail_out - min_material_thickness
+            rail_out = gear['specs']['radius_inner'] - 0.5 * thinnest_material_wall
+            rail_in = rail_out - thinnest_material_wall
+            gear['axle_radius'] = rail_in
             gear['verts'] += [make_cylinder_verts(rail_in, rail_out)]
             gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
 
     if gear.get('ring_under', None) is not None:
-        rail_out = gear['specs']['radius_outer'] + 0.5 * min_material_thickness
-        rail_in = rail_out - min_material_thickness
-        rail_top = -0.5 * spur_teeth_thickness + 0.5 * min_material_thickness
-        rail_bottom = rail_top - min_material_thickness
+        rail_out = gear['specs']['radius_outer'] + 0.5 * thinnest_material_wall
+        rail_in = rail_out - thinnest_material_wall
+        rail_top = -0.5 * spur_teeth_thickness + 0.5 * thinnest_material_wall
+        rail_bottom = rail_top - thinnest_material_wall
         gear['verts'] += [make_cylinder_verts(rail_in, rail_out)]
         gear['verts_z'] += [[rail_bottom, rail_top]]
 
@@ -439,7 +445,7 @@ def build_one_geneva(gear, rotor):
             inner_vert_dir = np.sign(c[2]) * normalized(d1 + d2)
             verts[inner_vert_index] = this_outer_vert + tooth_rim_thickness * inner_vert_dir
     gear['verts'] = [verts]
-    gear['verts_z'] = [[-0.5 * min_material_thickness, 0.5 * min_material_thickness]]
+    gear['verts_z'] = [[-0.5 * thinnest_material_wall, 0.5 * thinnest_material_wall]]
     return verts
 
 def configure_rotor(rotor, geneva):
@@ -463,7 +469,7 @@ def build_one_rotor(rotor, geneva):
         sval = np.sin(theta)
         cval = np.cos(theta)
         outer_radius = rotor['hub_radius'] - slide_buffer_dist
-        inner_radius = outer_radius - min_material_thickness
+        inner_radius = outer_radius - thinnest_material_wall
         outer_vert_index = seg*2
         inner_vert_index = outer_vert_index + 1
         verts[outer_vert_index][0] = outer_radius * sval
@@ -474,7 +480,7 @@ def build_one_rotor(rotor, geneva):
         verts[inner_vert_index][2] = 0.0
 
         outer_pin_radius = rotor['pin_radius'] - slide_buffer_dist
-        inner_pin_radius = rotor['pin_radius']  - min_material_thickness
+        inner_pin_radius = rotor['pin_radius']  - thinnest_material_wall
         pin_verts[outer_vert_index][0] = rotor['arm_length'] + outer_pin_radius * sval
         pin_verts[outer_vert_index][1] = outer_pin_radius * cval
         pin_verts[outer_vert_index][2] = 0.0
@@ -483,7 +489,7 @@ def build_one_rotor(rotor, geneva):
         pin_verts[inner_vert_index][2] = 0.0
 
         outer_disc_radius = 1.0 * rotor['pin_radius'] + rotor['arm_length']
-        inner_disc_radius = outer_disc_radius - min_material_thickness
+        inner_disc_radius = outer_disc_radius - thinnest_material_wall
         disc_verts[outer_vert_index][0] = outer_disc_radius * sval
         disc_verts[outer_vert_index][1] = outer_disc_radius * cval
         disc_verts[outer_vert_index][2] = 0.0
@@ -492,13 +498,15 @@ def build_one_rotor(rotor, geneva):
         disc_verts[inner_vert_index][2] = 0.0
 
     rotor['verts'] = [verts, pin_verts, disc_verts]
-    rotor['verts_z'] = [[-1.0 * min_material_thickness, 1.0 * spur_teeth_thickness],
-                        [-1.0 * min_material_thickness, 1.0 * spur_teeth_thickness],
-                        [-1.5 * min_material_thickness, -0.5 * min_material_thickness]]
+    rotor['verts_z'] = [[-1.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness],
+                        [-1.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness],
+                        [-1.5 * thinnest_material_wall, -0.5 * thinnest_material_wall]]
     return verts
 
 def normalized(v):
     return v / np.linalg.norm(v)
+def length(v):
+    return np.linalg.norm(v)
 
 def write_one_quad(fp, v0, v1, v2, v3, n=None):
     if n is None:
@@ -651,22 +659,55 @@ def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=No
             verts[inner_vert_index] += center
     return verts
 
-def make_gear_hub_foot(platter_name, gear, base_z):
+def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     platter = all_platters[platter_name]
-    strut_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
-    strut_pos = np.array([gear['pos'][0], gear['pos'][1], 0.0])
-    strut_top = gear['pos'][2]
-    strut_bottom = base_z
-    feet = platter['gears']['feet']
-    feet['verts'].append(strut_verts + strut_pos)
-    feet['verts_z'].append([strut_bottom, strut_top])
 
-def make_gear_hub_riser(platter_name, gear, top_z):
+    strut_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
+    strut_pos = np.array([gear['pos'][0], gear['pos'][1], 0.0])
+    feet = platter['gears']['feet']
+    # feet['verts'].append(strut_verts + strut_pos)
+    # feet['verts_z'].append([strut_bottom, strut_top])
+
+    ring_radius = platter['base_ring_radius']
+    origin = np.array([0.0, 0.0, 0.0])
+
+
+    ## make the axle
+    axle1_radius = gear['axle_radius'] - slide_buffer_dist
+    axle1_in = axle1_radius - thinnest_material_wall
+    axle1_out = axle1_radius
+    axle1_verts = make_cylinder_verts(axle1_in, axle1_out)
+    axle1_pos = np.array([gear['pos'][0], gear['pos'][1], 0.0])
+    axle1_top = gear['pos'][2] + 0.5 * tooth_rim_thickness
+    axle1_bottom = axle1_top - tooth_rim_thickness - 0.5 * thinnest_material_wall
+    shaft = platter['gears']['shaft']
+    feet['verts'].append(axle1_verts + axle1_pos)
+    feet['verts_z'].append([axle1_bottom, axle1_top])
+
+    axle2_in = axle1_in
+    axle2_out = 0.5 * gear['specs']['radius_ref'] + 0.5 * gear['specs']['radius_inner']
+    if axle2_out < axle2_in + 2 * strut_outer_radius:
+        axle2_out = axle2_in + 2 * strut_outer_radius
+    axle2_top = axle1_top - tooth_rim_thickness - slide_buffer_dist
+    axle2_bottom = axle2_top - thinnest_material_wall
+    axle2_verts = make_cylinder_verts(axle2_in, axle2_out)
+    feet['verts'].append(axle2_verts + axle1_pos)
+    feet['verts_z'].append([axle2_bottom, axle2_top])
+
+    strut_top = axle2_bottom + slide_buffer_dist
+    mini_radius = axle2_in + 1 * strut_outer_radius
+    ring_pts = find_circle_intersection_points(origin, ring_radius, gear['pos'], mini_radius)
+    if len(ring_pts):
+        feet['verts'].append(strut_verts + ring_pts[0])
+        feet['verts_z'].append([strut_bottom, strut_top])
+        if len(ring_pts) > 1:
+            feet['verts'].append(strut_verts + ring_pts[1])
+            feet['verts_z'].append([strut_bottom, strut_top])
+
+def make_gear_hub_riser(platter_name, gear, strut_bottom, strut_top):
     platter = all_platters[platter_name]
     strut_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
     strut_pos = np.array([gear['pos'][0], gear['pos'][1], 0.0])
-    strut_bottom = gear['pos'][2]
-    strut_top = top_z
     feet = platter['gears']['feet']
     feet['verts'].append(strut_verts + strut_pos)
     feet['verts_z'].append([strut_bottom, strut_top])
@@ -683,9 +724,9 @@ def make_platter_supports(platter_name):
         shaft_gear = gearDa
     else:
         shaft_gear = gearPs
-    fd = r2 * (shaft_gear['specs']['radius_outer'] + 1 * strut_outer_radius + min_material_thickness)
+    fd = r2 * (shaft_gear['specs']['radius_outer'] + 1 * strut_outer_radius + thinnest_material_wall)
     sd = r2 * (shaft_gear['specs']['radius_ref'] - 1.5 * strut_outer_radius)
-    f2d = r2 * (gearPs['specs']['radius_inner'] - 1 * strut_outer_radius - min_material_thickness - slide_buffer_dist)
+    f2d = r2 * (gearPs['specs']['radius_inner'] - 1 * strut_outer_radius - thinnest_material_wall - slide_buffer_dist)
     foot_offsets = [np.array([-1, -1, 0.0]),
                     np.array([ 1, -1, 0.0]),
                     np.array([-1,  1, 0.0]),
@@ -699,19 +740,17 @@ def make_platter_supports(platter_name):
     support_platter = all_platters.get(support_platter_name, None)
     base_clearance = 2.0 * spur_teeth_thickness
     base_z = platter['pos'][2] - base_clearance
-    # base_z = support_platter['pos'][2] - base_clearance
-    # if support_platter:
-    #     base_z = support_platter['pos'][2] - base_clearance
-    # else:
-    #     base_z = all_platters['Drive']['pos'][2] - base_clearance
+
+    platter['base_ring_radius'] = length(platter['gears']['Pp0']['pos']) * platter.get('scale_base_ring_radius', 1.0)
+
     for gear_name,gear in platter['gears'].items():
-        if gear_name in ['Pp0', 'Pp1', 'Pp2', 'Pp3', 'Db']:
-            make_gear_hub_foot(platter_name, gear, base_z - platter['pos'][2])
-    if support_platter:
-        for gear_name,gear in support_platter['gears'].items():
-            if gear_name in ['Pp0', 'Pp1', 'Pp2', 'Pp3']:
-                make_gear_hub_riser(support_platter_name, gear, 100)
-#                make_gear_hub_riser(support_platter_name, gear, base_z - support_platter['pos'][2])
+        strut_bottom = platter['base_z']
+        if gear_name in ['Db']:
+            strut_top = gear['pos'][2]
+            make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top)
+        if gear_name in ['Pp0', 'Pp1', 'Pp2', 'Pp3']:
+            strut_top = gear['pos'][2] + 8
+            make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top)
 
     if 0:
         for gear_name,gear in platter['gears'].items():
@@ -724,6 +763,55 @@ def make_platter_supports(platter_name):
                     shaft['verts'].append(foot_verts + sd * foot_offsets[foot_index])
                     shaft['verts_z'].append([shaft_gear['pos'][2] - 1.0, shaft_gear['pos'][2] + 1.0])
 
+def set_platter_base(platter_name):
+    platter = all_platters[platter_name]
+    if platter_name == 'Drive':
+        platter['base_z'] = -2.0
+    elif platter_name == 'Mars':
+        platter['base_z'] = all_platters['Drive']['base_z'] - each_platter_z
+    else:
+        platter['base_z'] = -2.0
+
+
+def do_platter_adjustments(platter_name):
+    platter = all_platters[platter_name]
+    if platter_name == 'Drive':
+        platter['gears']['G']['pos'][2] = platter['gears']['Ps']['pos'][2]
+
+    if platter_name in ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']:
+        ring_radius = platter['base_ring_radius']
+        ring_base_z = platter['base_z']
+        make_base_ring(platter_name, ring_radius, ring_base_z)
+
+def find_circle_intersection_points(c1, r1, c2, r2):
+    d = length(c2 - c1)
+    if d >= r1 + r2:
+        return []
+    a = (r1*r1 - r2*r2 + d*d) / (2*d)
+    cross_pt = c1 + (c2 - c1) * a / d
+    if r1*r1 < a*a:
+        return []
+    h = np.sqrt(r1*r1 - a*a)
+    dx =  h * (c2[1] - c1[1]) / d
+    dy = -h * (c2[0] - c1[0]) / d
+    dxy = np.array([dx, dy, 0.0])
+    return [cross_pt + dxy, cross_pt - dxy]
+
+def make_base_ring(platter_name, ring_radius, ring_base_z):
+    platter = all_platters[platter_name]
+    ring_top = ring_base_z + 1.0 * thinnest_material_wall
+    ring_bottom = ring_top - thinnest_material_wall
+    feet = platter['gears']['feet']
+    ring_out = ring_radius + strut_outer_radius
+    ring_in = ring_out - thinnest_material_wall
+    ring_verts = make_cylinder_verts(ring_in, ring_out)
+    feet['verts'].append(ring_verts)
+    feet['verts_z'].append([ring_bottom, ring_top])
+    ring_in = ring_radius - strut_outer_radius
+    ring_out = ring_in + thinnest_material_wall
+    ring_verts = make_cylinder_verts(ring_in, ring_out)
+    feet['verts'].append(ring_verts)
+    feet['verts_z'].append([ring_bottom, ring_top])
 
 def tooth_theta(gear):
     return 2.0 * np.pi / gear['teeth']
@@ -795,8 +883,8 @@ def build_one_platter(platter_name):
 
         match_post_sizes = False
         if match_post_sizes:
-            post1 = gearDa['specs']['radius_outer'] + 1 * strut_outer_radius + min_material_thickness
-            post2 = gearPs['specs']['radius_inner'] - 0 * strut_outer_radius - 0 * min_material_thickness
+            post1 = gearDa['specs']['radius_outer'] + 1 * strut_outer_radius + thinnest_material_wall
+            post2 = gearPs['specs']['radius_inner'] - 0 * strut_outer_radius - 0 * thinnest_material_wall
             ring_fix = post1 / post2
             scale_gear_specs(gearPr, ring_fix)
             scale_gear_specs(gearPs, ring_fix)
@@ -823,13 +911,13 @@ def build_one_platter(platter_name):
         elif gtype == 'rotor':
             build_one_rotor(gear, gearG)
     geneva_z = 0.0
-    planetary_z = geneva_z + 0.5 * min_material_thickness + 0.5 * spur_teeth_thickness
+    planetary_z = geneva_z + 0.5 * thinnest_material_wall + 0.5 * spur_teeth_thickness
     if dual_drive:
-        mini_driver_z = geneva_z - 2.0 * min_material_thickness - 0.5 * spur_teeth_thickness
-        mini_driver2_z = geneva_z - 1.5 * min_material_thickness - 0.5 * spur_teeth_thickness
-        driver_z = mini_driver_z - 1.0 * spur_teeth_thickness - 0.0 * min_material_thickness
+        mini_driver_z = geneva_z - 2.0 * thinnest_material_wall - 0.5 * spur_teeth_thickness
+        mini_driver2_z = geneva_z - 1.5 * thinnest_material_wall - 0.5 * spur_teeth_thickness
+        driver_z = mini_driver_z - 1.0 * spur_teeth_thickness - 0.0 * thinnest_material_wall
     else:
-        driver_z = geneva_z - slide_buffer_dist - 0.5 * min_material_thickness - 0.5 * spur_teeth_thickness
+        driver_z = geneva_z - slide_buffer_dist - 0.5 * thinnest_material_wall - 0.5 * spur_teeth_thickness
     gearG['pos'] = np.array([0.0, 0.0, 0.0])
     gearG['rot'] = 0.5 * tooth_theta(gearG) + np.radians(rotor_azimuth)
     gearPs['pos'] = np.array([0.0, 0.0, planetary_z])
@@ -877,7 +965,22 @@ def build_one_platter(platter_name):
     cval = np.cos(np.radians(rotor_azimuth))
     rotor['pos'] = np.array([sval*rotor_dist, cval*rotor_dist, gearG['pos'][2]])
 
+    for gear_name,gear in platter['gears'].items():
+        if 'roll_to' in gear:
+            roll_theta = np.radians(gear['roll_to'][0])
+            roll_parent = platter['gears'][gear['roll_to'][1]]
+            theta = gear.get('rot', 0.0)
+            pos = gear.get('pos', [0.0, 0.0, 0.0])
+            roll_radius = length(pos - roll_parent['pos'])
+            sval = np.sin(roll_theta)
+            cval = np.cos(roll_theta)
+            gear['pos'] = np.array([sval*roll_radius + roll_parent['pos'][0], cval*roll_radius + roll_parent['pos'][1], gear['pos'][2]])
+            gear['rot'] = theta + 2.0 * roll_theta * float(roll_parent['teeth']) / float(gear['teeth'])
+
+
+    set_platter_base(platter_name)
     make_platter_supports(platter_name)
+    do_platter_adjustments(platter_name)
 
 def print_checks():
     print('Pitch stats:')
