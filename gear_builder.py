@@ -557,14 +557,19 @@ def write_stl_tristrip_quads(fp, verts, verts_z, pos=None, rot=None, closed=True
         write_one_quad(fp, v0b, v0a, v2b, v2a)
         write_one_quad(fp, v1a, v1b, v3a, v3b)
 
-def write_stl_platter(platter_name, file_name):
+def write_stl_platter(platter_name, gears_file_name, frame_file_name):
     platter = all_platters[platter_name]
     platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
 
     # try:
-    fp = open(file_name, 'w')
+    fp_gears = open(gears_file_name, 'w')
+    fp_frame = open(frame_file_name, 'w')
     for gear_name,gear in platter['gears'].items():
         print('  Writing gear {}:{}'.format(platter_name, gear_name))
+        if gear_name in ['feet']:
+            fp = fp_frame
+        else:
+            fp = fp_gears
         fp.write('solid OpenSCAD_Model\n')
         verts = gear.get('verts', None)
         if verts is not None:
@@ -574,7 +579,8 @@ def write_stl_platter(platter_name, file_name):
                 verts_z = gear['verts_z'][strip_index]
                 write_stl_tristrip_quads(fp, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
         fp.write('endsolid OpenSCAD_Model\n')
-    fp.close()
+    fp_gears.close()
+    fp_frame.close()
     # except:
     #     print('Unable to write file', file_name)
 
@@ -669,6 +675,9 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     # feet['verts_z'].append([strut_bottom, strut_top])
 
     ring_radius = platter['base_ring_radius']
+    if platter_name == 'Luna':
+        ring_radius = all_platters['Mars']['base_ring_radius']
+
     origin = np.array([0.0, 0.0, 0.0])
 
 
@@ -694,15 +703,17 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     feet['verts'].append(axle2_verts + axle1_pos)
     feet['verts_z'].append([axle2_bottom, axle2_top])
 
-    strut_top = axle2_bottom + slide_buffer_dist
-    mini_radius = axle2_in + 1 * strut_outer_radius
-    ring_pts = find_circle_intersection_points(origin, ring_radius, gear['pos'], mini_radius)
-    if len(ring_pts):
-        feet['verts'].append(strut_verts + ring_pts[0])
-        feet['verts_z'].append([strut_bottom, strut_top])
-        if len(ring_pts) > 1:
-            feet['verts'].append(strut_verts + ring_pts[1])
+    # Struts
+    if 0:
+        strut_top = axle2_bottom + slide_buffer_dist
+        mini_radius = axle2_in + 1 * strut_outer_radius
+        ring_pts = find_circle_intersection_points(origin, ring_radius, gear['pos'], mini_radius)
+        if len(ring_pts):
+            feet['verts'].append(strut_verts + ring_pts[0])
             feet['verts_z'].append([strut_bottom, strut_top])
+            if len(ring_pts) > 1:
+                feet['verts'].append(strut_verts + ring_pts[1])
+                feet['verts_z'].append([strut_bottom, strut_top])
 
 def make_gear_hub_riser(platter_name, gear, strut_bottom, strut_top):
     platter = all_platters[platter_name]
@@ -751,6 +762,9 @@ def make_platter_supports(platter_name):
         if gear_name in ['Pp0', 'Pp1', 'Pp2', 'Pp3']:
             strut_top = gear['pos'][2] + 8
             make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top)
+        if platter_name in ['Drive'] and gear_name in ['Ps']:
+            strut_top = gear['pos'][2] + 8
+            make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top)
 
     if 0:
         for gear_name,gear in platter['gears'].items():
@@ -766,9 +780,11 @@ def make_platter_supports(platter_name):
 def set_platter_base(platter_name):
     platter = all_platters[platter_name]
     if platter_name == 'Drive':
-        platter['base_z'] = -2.0
+        platter['base_z'] = -1.5 * thinnest_material_wall
     elif platter_name == 'Mars':
         platter['base_z'] = all_platters['Drive']['base_z'] - each_platter_z
+    elif platter_name == 'Luna':
+        platter['base_z'] = all_platters['Drive']['base_z'] - 2 * each_platter_z
     else:
         platter['base_z'] = -2.0
 
@@ -778,10 +794,42 @@ def do_platter_adjustments(platter_name):
     if platter_name == 'Drive':
         platter['gears']['G']['pos'][2] = platter['gears']['Ps']['pos'][2]
 
-    if platter_name in ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']:
+    if platter_name in ['Drive']:
+        riser_height = None
+        riser_plan = None
+        rad_in = platter['gears']['Ps']['axle_radius']
+        rad_out = platter['base_ring_radius'] + platter['gears']['Pp0']['axle_radius']
+        center_rings = [rad_in, rad_out]
+        connect_rings = [[[rad_in, rad_out],[90, 270]]]
+        ring_radius = None
+        ring_base_z = platter['base_z']
+        make_base_ring(platter_name, ring_radius, ring_base_z,
+                       center_rings=center_rings, connect_rings=connect_rings,
+                       riser_height=riser_height, riser_plan=riser_plan)
+    if platter_name in ['Mars']:
         ring_radius = platter['base_ring_radius']
         ring_base_z = platter['base_z']
-        make_base_ring(platter_name, ring_radius, ring_base_z)
+        riser_height = -ring_base_z
+        riser_plan = [
+                     [0.0-20.0, 0.0], 
+                     [0.0-5.0,  1.0], 
+                     [0.0+5.0,  1.0],
+                     [0.0+20.0, 0.0],
+                     [180.0-20.0, 0.0], 
+                     [180.0-5.0,  1.0], 
+                     [180.0+5.0,  1.0],
+                     [180.0+20.0, 0.0],
+                     [360.0-20.0, 0.0], 
+                     [360.0-5.0,  1.0], 
+                     [360.0,     0.0],
+                     ]
+        make_base_ring(platter_name, ring_radius, ring_base_z, riser_height=riser_height, riser_plan=riser_plan)
+    elif platter_name in ['Venus', 'Mercury']:
+        riser_height = None
+        riser_plan = None
+        ring_radius = platter['base_ring_radius']
+        ring_base_z = platter['base_z']
+        make_base_ring(platter_name, ring_radius, ring_base_z, riser_height=riser_height, riser_plan=riser_plan)
 
 def find_circle_intersection_points(c1, r1, c2, r2):
     d = length(c2 - c1)
@@ -797,21 +845,94 @@ def find_circle_intersection_points(c1, r1, c2, r2):
     dxy = np.array([dx, dy, 0.0])
     return [cross_pt + dxy, cross_pt - dxy]
 
-def make_base_ring(platter_name, ring_radius, ring_base_z):
+def make_base_ring(platter_name, ring_radius, ring_base_z,
+                   center_rings=None, connect_rings=None, 
+                   riser_height=None, riser_plan=None):
     platter = all_platters[platter_name]
     ring_top = ring_base_z + 1.0 * thinnest_material_wall
     ring_bottom = ring_top - thinnest_material_wall
     feet = platter['gears']['feet']
-    ring_out = ring_radius + strut_outer_radius
-    ring_in = ring_out - thinnest_material_wall
-    ring_verts = make_cylinder_verts(ring_in, ring_out)
-    feet['verts'].append(ring_verts)
-    feet['verts_z'].append([ring_bottom, ring_top])
-    ring_in = ring_radius - strut_outer_radius
-    ring_out = ring_in + thinnest_material_wall
-    ring_verts = make_cylinder_verts(ring_in, ring_out)
-    feet['verts'].append(ring_verts)
-    feet['verts_z'].append([ring_bottom, ring_top])
+
+    span_dist = strut_outer_radius * 6
+
+    if center_rings is not None:
+        for ring in center_rings:
+            ring_out = ring + 0.5 * thinnest_material_wall
+            ring_in = ring_out - thinnest_material_wall
+            ring_verts = make_cylinder_verts(ring_in, ring_out)
+            feet['verts'].append(ring_verts)
+            feet['verts_z'].append([ring_bottom, ring_top])
+
+    if connect_rings is not None:
+        for ring in connect_rings:
+            connect_in = ring[0][0]
+            connect_out = ring[0][1]
+            thetas = ring[1]
+            avg_rad = 0.5 * (connect_in + connect_out)
+            ring_in = avg_rad - 0.5 * thinnest_material_wall
+            ring_out = ring_in + thinnest_material_wall
+            ring_offset_dist = avg_rad - connect_in
+            ring_verts = make_cylinder_verts(ring_in, ring_out)
+            for theta in thetas:
+                sval = np.sin(np.radians(theta))
+                cval = np.cos(np.radians(theta))
+                ring_offset = np.array([ring_offset_dist * sval, ring_offset_dist * cval , 0.0])
+                feet['verts'].append(ring_verts + ring_offset)
+                feet['verts_z'].append([ring_bottom, ring_top])
+
+    if ring_radius is not None:
+        # Outer ring
+        ring_out1 = ring_radius + 0.5 * span_dist
+        ring_in1 = ring_out1 - thinnest_material_wall
+        ring_verts = make_cylinder_verts(ring_in1, ring_out1)
+        feet['verts'].append(ring_verts)
+        feet['verts_z'].append([ring_bottom, ring_top])
+        # Outer riser
+        if riser_plan is not None:
+            ring_verts = make_cylinder_verts(ring_in1, ring_out1, num_segments=500)
+            riser_verts = []
+            for i,v in enumerate(ring_verts):
+                th = 360.0 * float(i) / float(len(ring_verts))
+                for plan_index,rp2 in enumerate(riser_plan):
+                    if rp2[0] > th:
+                        break
+                rp1 = riser_plan[plan_index - 1]
+                t = (th - rp1[0]) / (rp2[0] - rp1[0])
+                rise = rp1[1] + t * (rp2[1] - rp1[1])
+                if 0:
+                    # use sin^2 to mellow it out
+                    rise = np.sin(rise * 0.5 * np.pi)
+                    rise *= rise
+                if 1:
+                    # use sin to mellow it out
+                    rise = np.sin((rise - 0.5) * 1.0 * np.pi)
+                    rise = 0.5 * (rise + 1.0)
+
+                riser_verts.append(v + [0.0, 0.0, riser_height * rise])
+
+            feet['verts'].append(riser_verts)
+            feet['verts_z'].append([ring_bottom, ring_top])
+        #return
+
+        #inner ring
+        ring_in2 = ring_radius - 0.5 * span_dist
+        ring_out2 = ring_in2 + thinnest_material_wall
+        ring_verts = make_cylinder_verts(ring_in2, ring_out2)
+        feet['verts'].append(ring_verts)
+        feet['verts_z'].append([ring_bottom, ring_top])
+        #cross rings
+        ring_in3 = ring_radius - 0.5 * thinnest_material_wall
+        ring_out3 = ring_in3 + thinnest_material_wall
+        ring_verts = make_cylinder_verts(ring_in3, ring_out3)
+        ring_offset_dist = 0.5 * span_dist - 0.5 * thinnest_material_wall
+        thetas = [0, 180, 90, 270]
+        for theta in thetas:
+            sval = np.sin(np.radians(theta))
+            cval = np.cos(np.radians(theta))
+            ring_offset = np.array([ring_offset_dist * sval, ring_offset_dist * cval , 0.0])
+            feet['verts'].append(ring_verts + ring_offset)
+            feet['verts_z'].append([ring_bottom, ring_top])
+
 
 def tooth_theta(gear):
     return 2.0 * np.pi / gear['teeth']
@@ -978,9 +1099,9 @@ def build_one_platter(platter_name):
             gear['rot'] = theta + 2.0 * roll_theta * float(roll_parent['teeth']) / float(gear['teeth'])
 
 
-    set_platter_base(platter_name)
-    make_platter_supports(platter_name)
-    do_platter_adjustments(platter_name)
+    # set_platter_base(platter_name)
+    # make_platter_supports(platter_name)
+    # do_platter_adjustments(platter_name)
 
 def print_checks():
     print('Pitch stats:')
@@ -1002,10 +1123,20 @@ def print_checks():
 def build_all():
     platters_to_make = all_platters.keys()
     for platter_name in platters_to_make:
-        print('  Building platter {} ---------'.format(platter_name))
         make_platter_specs(platter_name)
+    for platter_name in platters_to_make:
         build_one_platter(platter_name)
-        write_stl_platter(platter_name, './output/platter_{}.stl'.format(platter_name))
+    for platter_name in platters_to_make:
+        set_platter_base(platter_name)
+    for platter_name in platters_to_make:
+        make_platter_supports(platter_name)
+    for platter_name in platters_to_make:
+        do_platter_adjustments(platter_name)
+    for platter_name in platters_to_make:
+        print('  Building platter {} ---------'.format(platter_name))
+        write_stl_platter(platter_name,
+                          './output/platter_{}_gears.stl'.format(platter_name),
+                          './output/platter_{}_frame.stl'.format(platter_name))
     print_checks()
 
 if __name__ == "__main__":
