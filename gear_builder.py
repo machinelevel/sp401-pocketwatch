@@ -812,11 +812,13 @@ def do_platter_adjustments(platter_name):
         rad_in = all_platters['Drive']['base_ring_radius'] + all_platters['Drive']['gears']['Pp0']['axle_radius']
         rad_out = platter['base_ring_radius'] + platter['gears']['Pp0']['axle_radius']
         rad_mid = platter['base_ring_radius'] - platter['gears']['Pp0']['axle_radius']
+        rad_out2 = 0.5 * rad_out + 0.5 * rad_mid
         # ring_radius = platter['base_ring_radius']
         ring_radius = None
         ring_base_z = platter['base_z']
         riser_height = 1.0
         riser_height_Pp = platter['gears']['Pp0']['axle_rest_z'] - 1.0 * thinnest_material_wall - ring_base_z
+        riser_height_Db = platter['gears']['Db']['axle_rest_z'] - 1.0 * thinnest_material_wall - ring_base_z
         riser_plan = [
                      [0.0-5.0,  riser_height_Pp], 
                      [0.0+5.0,  riser_height_Pp],
@@ -829,9 +831,98 @@ def do_platter_adjustments(platter_name):
                      [360.0-5.0,  riser_height_Pp], 
                      [360.0,      riser_height_Pp],
                      ]
+        riser_planA = [
+                     [0.0-5.0,  riser_height_Pp], 
+                     [0.0+5.0, 0.0],
+                     [180.0-15.0, 0.0], 
+                     [180.0-5.0,  riser_height_Pp], 
+                     [180.0+5.0, 0.0], 
+                     [360.0-15.0, 0.0], 
+                     [360.0-5.0,  riser_height_Pp], 
+                     [360.0+5.0,   0.0],
+                     ]
+        riser_planB = [
+                     [0.0-5.0,  0.0], 
+                     [0.0+5.0,  riser_height_Pp], 
+                     [0.0+15.0, 0.0],
+                     [180.0-5.0, 0.0], 
+                     [180.0+5.0,  riser_height_Pp], 
+                     [180.0+15.0, 0.0], 
+                     [360.0-5.0, 0.0], 
+                     [360.0+5.0,  riser_height_Pp], 
+                     ]
+        riser_planAA = [
+                     [0.0-10.0,  riser_height_Pp], 
+                     [0.0+0.0, 0.0],
+                     [180.0-20.0, 0.0], 
+                     [180.0-10.0,  riser_height_Pp], 
+                     [180.0+0.0, 0.0], 
+                     [360.0-20.0, 0.0], 
+                     [360.0-10.0,  riser_height_Pp], 
+                     [360.0+0.0,   0.0],
+                     ]
+        riser_planBB = [
+                     [0.0-0.0,  0.0], 
+                     [0.0+10.0,  riser_height_Pp], 
+                     [0.0+20.0, 0.0],
+                     [180.0-0.0, 0.0], 
+                     [180.0+10.0,  riser_height_Pp], 
+                     [180.0+20.0, 0.0], 
+                     [360.0-0.0, 0.0], 
+                     [360.0+10.0,  riser_height_Pp], 
+                     ]
+        riser_planC = [
+                     [0.0,  0.0], 
+                     [270.0-31.0+2.0-10.0,  0.0], 
+                     [270.0-31.0+2.0,  riser_height_Db], 
+                     [270.0-31.0+2.0+10.0,  0.0], 
+                     [270.0+31.0+2.0-10.0,  0.0], 
+                     [270.0+31.0+2.0,  riser_height_Db], 
+                     [270.0+31.0+2.0+10.0,  0.0], 
+                     [360.0,  0.0], 
+                     ]
+        riser_planD = [
+                     [0.0,  0.0], 
+                     [270.0-31.0-2.0-10.0,  0.0], 
+                     [270.0-31.0-2.0,  riser_height_Db], 
+                     [270.0-31.0-2.0+10.0,  0.0], 
+                     [270.0+31.0-2.0-10.0,  0.0], 
+                     [270.0+31.0-2.0,  riser_height_Db], 
+                     [270.0+31.0-2.0+10.0,  0.0], 
+                     [360.0,  0.0], 
+                     ]
+        riser_planE = [
+                     [0.0,  0.0], 
+                     [270.0-37.0+2.0-10.0,  0.0], 
+                     [270.0-37.0+2.0,  riser_height_Db], 
+                     [270.0-37.0+2.0+10.0,  0.0], 
+                     [270.0+37.0+2.0-10.0,  0.0], 
+                     [270.0+37.0+2.0,  riser_height_Db], 
+                     [270.0+37.0+2.0+10.0,  0.0], 
+                     [360.0,  0.0], 
+                     ]
+        riser_planF = [
+                     [0.0,  0.0], 
+                     [270.0-37.0-2.0-10.0,  0.0], 
+                     [270.0-37.0-2.0,  riser_height_Db], 
+                     [270.0-37.0-2.0+10.0,  0.0], 
+                     [270.0+37.0-2.0-10.0,  0.0], 
+                     [270.0+37.0-2.0,  riser_height_Db], 
+                     [270.0+37.0-2.0+10.0,  0.0], 
+                     [360.0,  0.0], 
+                     ]
         center_rings = [rad_out]
         connect_rings = [[[rad_in, rad_out],[90, 270]]]
-        riser_rings = [[rad_out, riser_plan], [rad_mid, riser_plan]]
+        riser_rings = [
+                       [rad_out, riser_planA],
+                       [rad_out, riser_planB],
+                       [rad_out2, riser_planAA],
+                       [rad_out2, riser_planBB],
+                       [rad_out, riser_planC],
+                       [rad_out, riser_planD],
+                       [rad_out2, riser_planE],
+                       [rad_out2, riser_planF],
+                       ]
         make_base_ring(platter_name, ring_radius, ring_base_z,
                        center_rings=center_rings, connect_rings=connect_rings,
                        riser_height=riser_height, riser_rings=riser_rings)
