@@ -698,6 +698,7 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     if axle2_out < axle2_in + 2 * strut_outer_radius:
         axle2_out = axle2_in + 2 * strut_outer_radius
     axle2_top = axle1_top - tooth_rim_thickness - slide_buffer_dist
+    gear['axle_rest_z'] = axle2_top
     axle2_bottom = axle2_top - thinnest_material_wall
     axle2_verts = make_cylinder_verts(axle2_in, axle2_out)
     feet['verts'].append(axle2_verts + axle1_pos)
@@ -797,39 +798,54 @@ def do_platter_adjustments(platter_name):
     if platter_name in ['Drive']:
         riser_height = None
         riser_plan = None
+        riser_rings = None
         rad_in = platter['gears']['Ps']['axle_radius']
         rad_out = platter['base_ring_radius'] + platter['gears']['Pp0']['axle_radius']
-        center_rings = [rad_in, rad_out]
+        center_rings = [rad_out]
         connect_rings = [[[rad_in, rad_out],[90, 270]]]
         ring_radius = None
         ring_base_z = platter['base_z']
         make_base_ring(platter_name, ring_radius, ring_base_z,
                        center_rings=center_rings, connect_rings=connect_rings,
-                       riser_height=riser_height, riser_plan=riser_plan)
+                       riser_height=riser_height, riser_rings=riser_rings)
     if platter_name in ['Mars']:
-        ring_radius = platter['base_ring_radius']
+        rad_in = all_platters['Drive']['base_ring_radius'] + all_platters['Drive']['gears']['Pp0']['axle_radius']
+        rad_out = platter['base_ring_radius'] + platter['gears']['Pp0']['axle_radius']
+        rad_mid = platter['base_ring_radius'] - platter['gears']['Pp0']['axle_radius']
+        # ring_radius = platter['base_ring_radius']
+        ring_radius = None
         ring_base_z = platter['base_z']
-        riser_height = -ring_base_z
+        riser_height = 1.0
+        riser_height_Pp = platter['gears']['Pp0']['axle_rest_z'] - 1.0 * thinnest_material_wall - ring_base_z
         riser_plan = [
-                     [0.0-20.0, 0.0], 
-                     [0.0-5.0,  1.0], 
-                     [0.0+5.0,  1.0],
+                     [0.0-5.0,  riser_height_Pp], 
+                     [0.0+5.0,  riser_height_Pp],
                      [0.0+20.0, 0.0],
                      [180.0-20.0, 0.0], 
-                     [180.0-5.0,  1.0], 
-                     [180.0+5.0,  1.0],
+                     [180.0-5.0,  riser_height_Pp], 
+                     [180.0+5.0,  riser_height_Pp],
                      [180.0+20.0, 0.0],
                      [360.0-20.0, 0.0], 
-                     [360.0-5.0,  1.0], 
-                     [360.0,     0.0],
+                     [360.0-5.0,  riser_height_Pp], 
+                     [360.0,      riser_height_Pp],
                      ]
-        make_base_ring(platter_name, ring_radius, ring_base_z, riser_height=riser_height, riser_plan=riser_plan)
+        center_rings = [rad_out]
+        connect_rings = [[[rad_in, rad_out],[90, 270]]]
+        riser_rings = [[rad_out, riser_plan], [rad_mid, riser_plan]]
+        make_base_ring(platter_name, ring_radius, ring_base_z,
+                       center_rings=center_rings, connect_rings=connect_rings,
+                       riser_height=riser_height, riser_rings=riser_rings)
     elif platter_name in ['Venus', 'Mercury']:
         riser_height = None
         riser_plan = None
+        center_rings = None
+        connect_rings = None
+        riser_rings = None
         ring_radius = platter['base_ring_radius']
         ring_base_z = platter['base_z']
-        make_base_ring(platter_name, ring_radius, ring_base_z, riser_height=riser_height, riser_plan=riser_plan)
+        make_base_ring(platter_name, ring_radius, ring_base_z,
+                       center_rings=center_rings, connect_rings=connect_rings,
+                       riser_height=riser_height, riser_rings=riser_rings)
 
 def find_circle_intersection_points(c1, r1, c2, r2):
     d = length(c2 - c1)
@@ -847,7 +863,7 @@ def find_circle_intersection_points(c1, r1, c2, r2):
 
 def make_base_ring(platter_name, ring_radius, ring_base_z,
                    center_rings=None, connect_rings=None, 
-                   riser_height=None, riser_plan=None):
+                   riser_height=None, riser_rings=None):
     platter = all_platters[platter_name]
     ring_top = ring_base_z + 1.0 * thinnest_material_wall
     ring_bottom = ring_top - thinnest_material_wall
@@ -880,16 +896,13 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
                 feet['verts'].append(ring_verts + ring_offset)
                 feet['verts_z'].append([ring_bottom, ring_top])
 
-    if ring_radius is not None:
-        # Outer ring
-        ring_out1 = ring_radius + 0.5 * span_dist
-        ring_in1 = ring_out1 - thinnest_material_wall
-        ring_verts = make_cylinder_verts(ring_in1, ring_out1)
-        feet['verts'].append(ring_verts)
-        feet['verts_z'].append([ring_bottom, ring_top])
-        # Outer riser
-        if riser_plan is not None:
-            ring_verts = make_cylinder_verts(ring_in1, ring_out1, num_segments=500)
+    if riser_rings is not None:
+        for ring in riser_rings:
+            radius = ring[0]
+            riser_plan = ring[1]
+            ring_in = radius - 0.5 * thinnest_material_wall
+            ring_out = radius + 0.5 * thinnest_material_wall
+            ring_verts = make_cylinder_verts(ring_in, ring_out, num_segments=500)
             riser_verts = []
             for i,v in enumerate(ring_verts):
                 th = 360.0 * float(i) / float(len(ring_verts))
@@ -898,20 +911,53 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
                         break
                 rp1 = riser_plan[plan_index - 1]
                 t = (th - rp1[0]) / (rp2[0] - rp1[0])
-                rise = rp1[1] + t * (rp2[1] - rp1[1])
                 if 0:
                     # use sin^2 to mellow it out
-                    rise = np.sin(rise * 0.5 * np.pi)
-                    rise *= rise
+                    rise_t = np.sin(t * 0.5 * np.pi)
+                    rise_t *= rise_t
                 if 1:
                     # use sin to mellow it out
-                    rise = np.sin((rise - 0.5) * 1.0 * np.pi)
-                    rise = 0.5 * (rise + 1.0)
+                    rise_t = np.sin((t - 0.5) * 1.0 * np.pi)
+                    rise_t = 0.5 * (rise_t + 1.0)
+                rise = rp1[1] + rise_t * (rp2[1] - rp1[1])
 
                 riser_verts.append(v + [0.0, 0.0, riser_height * rise])
 
             feet['verts'].append(riser_verts)
             feet['verts_z'].append([ring_bottom, ring_top])
+
+    if ring_radius is not None:
+        # Outer ring
+        ring_out1 = ring_radius + 0.5 * span_dist
+        ring_in1 = ring_out1 - thinnest_material_wall
+        ring_verts = make_cylinder_verts(ring_in1, ring_out1)
+        feet['verts'].append(ring_verts)
+        feet['verts_z'].append([ring_bottom, ring_top])
+        # Outer riser
+        # if riser_plan is not None:
+        #     ring_verts = make_cylinder_verts(ring_in1, ring_out1, num_segments=500)
+        #     riser_verts = []
+        #     for i,v in enumerate(ring_verts):
+        #         th = 360.0 * float(i) / float(len(ring_verts))
+        #         for plan_index,rp2 in enumerate(riser_plan):
+        #             if rp2[0] > th:
+        #                 break
+        #         rp1 = riser_plan[plan_index - 1]
+        #         t = (th - rp1[0]) / (rp2[0] - rp1[0])
+        #         rise = rp1[1] + t * (rp2[1] - rp1[1])
+        #         if 0:
+        #             # use sin^2 to mellow it out
+        #             rise = np.sin(rise * 0.5 * np.pi)
+        #             rise *= rise
+        #         if 1:
+        #             # use sin to mellow it out
+        #             rise = np.sin((rise - 0.5) * 1.0 * np.pi)
+        #             rise = 0.5 * (rise + 1.0)
+
+        #         riser_verts.append(v + [0.0, 0.0, riser_height * rise])
+
+        #     feet['verts'].append(riser_verts)
+        #     feet['verts_z'].append([ring_bottom, ring_top])
         #return
 
         #inner ring
