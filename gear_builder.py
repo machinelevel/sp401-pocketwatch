@@ -8,10 +8,12 @@ If you want to use it, please email me at pocketwatch@machinelevel.com
 
 """
 import numpy as np
+import collada as col  # http://pycollada.github.io/creating.html
 from ej_outer_tooth_shapes import outer_tooth_shapes_p10
 
 # Global scale values
 # All meassurements are in mm
+use_collada = True
 strut_outer_radius = 1.0
 thinnest_material_wall = 0.4
 spur_teeth_thickness = thinnest_material_wall
@@ -43,7 +45,7 @@ all_platters = {
         'pos': [0.0, 0.0, -2 * each_platter_z],
         'planetary_mult': 1,
         'scale_geneva': 1.0,
-        'scale_planetary': 1.73,
+        'scale_planetary': 1.73 * 0.95,
         'rings_under_planets':True,
         'support_platter':None,
         'rotor_azimuth':-90,
@@ -557,7 +559,7 @@ def write_stl_tristrip_quads(fp, verts, verts_z, pos=None, rot=None, closed=True
         write_one_quad(fp, v0b, v0a, v2b, v2a)
         write_one_quad(fp, v1a, v1b, v3a, v3b)
 
-def write_stl_platter(platter_name, gears_file_name, frame_file_name):
+def write_stl_platter(platter_name, collada_model, gears_file_name, frame_file_name):
     platter = all_platters[platter_name]
     platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
 
@@ -802,7 +804,7 @@ def do_platter_adjustments(platter_name):
         rad_in = platter['gears']['Ps']['axle_radius']
         rad_out = platter['base_ring_radius'] + platter['gears']['Pp0']['axle_radius']
         center_rings = [rad_out]
-        connect_rings = [[[rad_in, rad_out],[90, 270]]]
+        connect_rings = [[[rad_in, rad_out],[0+90, 120+90, 240+90]]]
         ring_radius = None
         ring_base_z = platter['base_z']
         make_base_ring(platter_name, ring_radius, ring_base_z,
@@ -1257,6 +1259,54 @@ def print_checks():
         if smallest_name:
             print('  {}: {} {} rotor-notch: {}'.format(platter_name, smallest_name, smallest_pitch, rotor_pin_width))
 
+class ColladaModel:
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self.start()
+
+    def start(self):
+        self.mesh = col.Collada()
+        effect = col.material.Effect("effect0", [], "phong", diffuse=(1,0,0), specular=(0,1,0))
+        self.mat = col.material.Material("material0", "mymaterial", effect)
+        self.mesh.effects.append(effect)
+        self.mesh.materials.append(self.mat)
+
+    def finish(self):
+        self.mesh.write(self.file_name)
+
+    def add_object(self, object_name, object_parent_name):
+        vert_floats = [-50,50,50,50,50,50,-50,-50,50,50,
+                       -50,50,-50,50,-50,50,50,-50,-50,-50,-50,50,-50,-50]
+        normal_floats = [0,0,1,0,0,1,0,0,1,0,0,1,0,1,0,
+                         0,1,0,0,1,0,0,1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,-1,0,0,
+                        -1,0,0,-1,0,0,-1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0,0,-1,
+                        0,0,-1,0,0,-1,0,0,-1]
+        vert_src = col.source.FloatSource("cubeverts-array", np.array(vert_floats), ('X', 'Y', 'Z'))
+        normal_src = col.source.FloatSource("cubenormals-array", np.array(normal_floats), ('X', 'Y', 'Z'))
+        geom = col.geometry.Geometry(self.mesh, "geometry0", "mycube", [vert_src, normal_src])
+
+        input_list = col.source.InputList()
+        input_list.addInput(0, 'VERTEX', "#cubeverts-array")
+        input_list.addInput(1, 'NORMAL', "#cubenormals-array")
+
+        indices = np.array([0,0,2,1,3,2,0,0,3,2,1,3,0,4,1,5,5,6,0,
+                               4,5,6,4,7,6,8,7,9,3,10,6,8,3,10,2,11,0,12,
+                               4,13,6,14,0,12,6,14,2,15,3,16,7,17,5,18,3,
+                               16,5,18,1,19,5,20,7,21,6,22,5,20,6,22,4,23])
+        triset = geom.createTriangleSet(indices, input_list, "materialref")
+        geom.primitives.append(triset)
+        self.mesh.geometries.append(geom)
+
+        matnode = col.scene.MaterialNode("materialref", self.mat, inputs=[])
+        geomnode = col.scene.GeometryNode(geom, [matnode])
+        node = col.scene.Node("node0", children=[geomnode])
+
+        myscene = col.scene.Scene("myscene", [node])
+        self.mesh.scenes.append(myscene)
+        self.mesh.scene = myscene
+
+
+
 def build_all():
     platters_to_make = all_platters.keys()
     for platter_name in platters_to_make:
@@ -1269,11 +1319,16 @@ def build_all():
         make_platter_supports(platter_name)
     for platter_name in platters_to_make:
         do_platter_adjustments(platter_name)
+
+    collada_model = ColladaModel('output/travelers_pocketwatch.dae')
+    collada_model.add_object('cube', 'cube_parent')
+
     for platter_name in platters_to_make:
         print('  Building platter {} ---------'.format(platter_name))
-        write_stl_platter(platter_name,
+        write_stl_platter(platter_name, collada_model,
                           './output/platter_{}_gears.stl'.format(platter_name),
                           './output/platter_{}_frame.stl'.format(platter_name))
+    collada_model.finish()
     print_checks()
 
 if __name__ == "__main__":
