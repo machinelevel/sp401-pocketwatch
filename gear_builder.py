@@ -528,7 +528,7 @@ def write_one_quad(fp, v0, v1, v2, v3, n=None):
     fp.write('    endloop\n')
     fp.write('  endfacet\n')
 
-def write_stl_tristrip_quads(fp, verts, verts_z, pos=None, rot=None, closed=True):
+def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=None, closed=True):
     if pos is None:
         pos = np.array([0,0,0])
     if rot is None:
@@ -579,7 +579,9 @@ def write_stl_platter(platter_name, collada_model, gears_file_name, frame_file_n
                 pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos
                 rot = gear.get('rot', 0.0)
                 verts_z = gear['verts_z'][strip_index]
-                write_stl_tristrip_quads(fp, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
+                write_stl_tristrip_quads(fp, collada_model, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
+                if collada_model is not None:
+                    collada_model.add_extruded_tristrip_quad_mesh(strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
         fp.write('endsolid OpenSCAD_Model\n')
     fp_gears.close()
     fp_frame.close()
@@ -1265,6 +1267,7 @@ class ColladaModel:
         self.start()
 
     def start(self):
+        self.nodes = []
         self.mesh = col.Collada()
         effect = col.material.Effect("effect0", [], "phong", diffuse=(1,0,0), specular=(0,1,0))
         self.mat = col.material.Material("material0", "mymaterial", effect)
@@ -1272,9 +1275,91 @@ class ColladaModel:
         self.mesh.materials.append(self.mat)
 
     def finish(self):
+        myscene = col.scene.Scene("myscene", self.nodes)
+        self.mesh.scenes.append(myscene)
+        self.mesh.scene = myscene
         self.mesh.write(self.file_name)
 
-    def add_object(self, object_name, object_parent_name):
+    def add_extruded_tristrip_quad_mesh(self, verts, verts_z, pos=None, rot=None, closed=True):
+        num_strip_verts = len(verts)
+        num_sections = num_strip_verts >> 1
+        num_quads = num_sections << 2
+        vert_floats = np.ndarray((num_sections,4,3), dtype=np.float64)
+        norm_floats = np.ndarray((num_sections,4,3), dtype=np.float64)
+        indices     = np.ndarray((num_sections,4,6,2), dtype=np.uint32)
+        z1 = np.array([0.0, 0.0, verts_z[1]])
+        z2 = np.array([0.0, 0.0, verts_z[0]])
+        for si in range(num_sections):
+            vi = si << 1
+            vert_floats[si][0] = verts[vi + 0] + z1
+            vert_floats[si][1] = verts[vi + 0] + z2
+            vert_floats[si][2] = verts[vi + 1] + z1
+            vert_floats[si][3] = verts[vi + 1] + z2
+
+            norm_floats[si][0] = np.array([0.0, 0.0,  1.0])
+            norm_floats[si][1] = np.array([0.0, 0.0, -1.0])
+            norm_floats[si][2] = np.array([0.0, 0.0, -1.0])
+            norm_floats[si][3] = np.array([0.0, 0.0,  1.0])
+
+            s0_start = 4 * si
+            s1_start = 4 * ((si + 1) % num_sections)
+            # top
+            indices[si][0][0][0] = s0_start + 0
+            indices[si][0][1][0] = s0_start + 2
+            indices[si][0][2][0] = s1_start + 2
+            indices[si][0][3][0] = s1_start + 2
+            indices[si][0][4][0] = s1_start + 0
+            indices[si][0][5][0] = s0_start + 0
+            # bottom
+            indices[si][1][0][0] = s0_start + 1
+            indices[si][1][1][0] = s0_start + 3
+            indices[si][1][2][0] = s1_start + 3
+            indices[si][1][3][0] = s1_start + 3
+            indices[si][1][4][0] = s1_start + 1
+            indices[si][1][5][0] = s0_start + 1
+            # in
+            indices[si][2][0][0] = s0_start + 0
+            indices[si][2][1][0] = s0_start + 1
+            indices[si][2][2][0] = s1_start + 1
+            indices[si][2][3][0] = s1_start + 1
+            indices[si][2][4][0] = s1_start + 0
+            indices[si][2][5][0] = s0_start + 0
+            # out
+            indices[si][3][0][0] = s0_start + 2
+            indices[si][3][1][0] = s0_start + 3
+            indices[si][3][2][0] = s1_start + 3
+            indices[si][3][3][0] = s1_start + 3
+            indices[si][3][4][0] = s1_start + 2
+            indices[si][3][5][0] = s0_start + 2
+            for section_face in range(4):
+                ni = s0_start + section_face
+                for nvi in range(6):
+                    indices[si][section_face][nvi][1] = ni
+    
+        flat_verts   = vert_floats.flatten()
+        flat_norms   = norm_floats.flatten()
+        flat_indices = indices.flatten()
+
+        node_index = len(self.nodes)
+        vert_src = col.source.FloatSource("cubeverts-array"+str(node_index), np.array(flat_verts), ('X', 'Y', 'Z'))
+        normal_src = col.source.FloatSource("cubenormals-array"+str(node_index), np.array(flat_norms), ('X', 'Y', 'Z'))
+        geom = col.geometry.Geometry(self.mesh, "geometry0"+str(node_index), "mycube"+str(node_index), [vert_src, normal_src])
+
+        input_list = col.source.InputList()
+        input_list.addInput(0, 'VERTEX', "#cubeverts-array"+str(node_index))
+        input_list.addInput(1, 'NORMAL', "#cubenormals-array"+str(node_index))
+
+        triset = geom.createTriangleSet(indices, input_list, "materialref")
+        geom.primitives.append(triset)
+        self.mesh.geometries.append(geom)
+
+        matnode = col.scene.MaterialNode("materialref", self.mat, inputs=[])
+        geomnode = col.scene.GeometryNode(geom, [matnode])
+        node = col.scene.Node("node0"+str(node_index), children=[geomnode])
+        self.nodes.append(node)
+
+
+    def add_test_object(self, object_name, object_parent_name):
         vert_floats = [-50,50,50,50,50,50,-50,-50,50,50,
                        -50,50,-50,50,-50,50,50,-50,-50,-50,-50,50,-50,-50]
         normal_floats = [0,0,1,0,0,1,0,0,1,0,0,1,0,1,0,
@@ -1300,10 +1385,7 @@ class ColladaModel:
         matnode = col.scene.MaterialNode("materialref", self.mat, inputs=[])
         geomnode = col.scene.GeometryNode(geom, [matnode])
         node = col.scene.Node("node0", children=[geomnode])
-
-        myscene = col.scene.Scene("myscene", [node])
-        self.mesh.scenes.append(myscene)
-        self.mesh.scene = myscene
+        self.nodes.append(node)
 
 
 
@@ -1321,7 +1403,7 @@ def build_all():
         do_platter_adjustments(platter_name)
 
     collada_model = ColladaModel('output/travelers_pocketwatch.dae')
-    collada_model.add_object('cube', 'cube_parent')
+    #collada_model.add_test_object('cube', 'cube_parent')
 
     for platter_name in platters_to_make:
         print('  Building platter {} ---------'.format(platter_name))
