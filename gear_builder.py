@@ -8,12 +8,16 @@ If you want to use it, please email me at pocketwatch@machinelevel.com
 
 """
 import numpy as np
-import collada as col  # http://pycollada.github.io/creating.html
 from ej_outer_tooth_shapes import outer_tooth_shapes_p10
+try:
+    import collada as col  # http://pycollada.github.io/creating.html
+    have_collada = True
+except:
+    have_collada = False
 
 # Global scale values
 # All meassurements are in mm
-use_collada = True
+use_collada = False
 strut_outer_radius = 1.0
 thinnest_material_wall = 0.4
 spur_teeth_thickness = thinnest_material_wall
@@ -46,14 +50,14 @@ all_platters = {
         'planetary_mult': 1,
         'scale_geneva': 1.0,
         'scale_planetary': 1.73 * 0.95,
-        'rings_under_planets':True,
+        'rings_under_planets':False,
         'support_platter':None,
         'rotor_azimuth':-90,
         'scale_base_ring_radius':1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':27},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':13},
-            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':29, 'outer_rail':1},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':29, 'outer_rail':3.5},
             'Grotor' :{'type':'rotor'},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
@@ -72,7 +76,7 @@ all_platters = {
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':28},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':0},
-            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':1},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':3.5},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
@@ -324,9 +328,10 @@ def build_one_spur(gear):
 #            verts[inner_vert_index] = this_outer_vert * 0.95
     gear['verts'] = [verts]
     gear['verts_z'] = [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
-    if gear.get('outer_rail', None):
+    outer_rail_width = gear.get('outer_rail', None)
+    if outer_rail_width is not None:
         rail_in = gear['specs']['radius_outer'] + 0.5 * thinnest_material_wall
-        rail_out1 = rail_in + 1 * thinnest_material_wall
+        rail_out1 = rail_in + outer_rail_width * thinnest_material_wall
         rail_out2 = rail_in + 2 * thinnest_material_wall
         gear['verts'] += [make_cylinder_verts(rail_in, rail_out1)]
         gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
@@ -336,7 +341,7 @@ def build_one_spur(gear):
     if gear['inout'] == 'out':
         if gear.get('inner_rail', 1):
             rail_out = gear['specs']['radius_inner'] - 0.5 * thinnest_material_wall
-            rail_in = rail_out - thinnest_material_wall
+            rail_in = rail_out - 2 * thinnest_material_wall
             gear['axle_radius'] = rail_in
             gear['verts'] += [make_cylinder_verts(rail_in, rail_out)]
             gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
@@ -559,19 +564,25 @@ def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=No
         write_one_quad(fp, v0b, v0a, v2b, v2a)
         write_one_quad(fp, v1a, v1b, v3a, v3b)
 
-def write_stl_platter(platter_name, collada_model, gears_file_name, frame_file_name):
+def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet_gears_file_name, frame_file_name):
     platter = all_platters[platter_name]
     platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
 
+    if collada_model is not None:
+        material = collada_model.new_material((0,1,0),(0,1,0))
+
     # try:
-    fp_gears = open(gears_file_name, 'w')
+    fp_drive_gears = open(drive_gears_file_name, 'w')
+    fp_planet_gears = open(planet_gears_file_name, 'w')
     fp_frame = open(frame_file_name, 'w')
     for gear_name,gear in platter['gears'].items():
         print('  Writing gear {}:{}'.format(platter_name, gear_name))
         if gear_name in ['feet']:
             fp = fp_frame
+        elif gear_name in ['G', 'Grotor', 'Da', 'Db']:
+            fp = fp_drive_gears
         else:
-            fp = fp_gears
+            fp = fp_planet_gears
         fp.write('solid OpenSCAD_Model\n')
         verts = gear.get('verts', None)
         if verts is not None:
@@ -581,9 +592,10 @@ def write_stl_platter(platter_name, collada_model, gears_file_name, frame_file_n
                 verts_z = gear['verts_z'][strip_index]
                 write_stl_tristrip_quads(fp, collada_model, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
                 if collada_model is not None:
-                    collada_model.add_extruded_tristrip_quad_mesh(strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
+                    collada_model.add_extruded_tristrip_quad_mesh(material, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
         fp.write('endsolid OpenSCAD_Model\n')
-    fp_gears.close()
+    fp_drive_gears.close()
+    fp_planet_gears.close()
     fp_frame.close()
     # except:
     #     print('Unable to write file', file_name)
@@ -697,6 +709,7 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     feet['verts'].append(axle1_verts + axle1_pos)
     feet['verts_z'].append([axle1_bottom, axle1_top])
 
+    # make the axle bottom-rest
     axle2_in = axle1_in
     axle2_out = 0.5 * gear['specs']['radius_ref'] + 0.5 * gear['specs']['radius_inner']
     if axle2_out < axle2_in + 2 * strut_outer_radius:
@@ -803,10 +816,13 @@ def do_platter_adjustments(platter_name):
         riser_height = None
         riser_plan = None
         riser_rings = None
-        rad_in = platter['gears']['Ps']['axle_radius']
-        rad_out = platter['base_ring_radius'] + platter['gears']['Pp0']['axle_radius']
-        center_rings = [rad_out]
-        connect_rings = [[[rad_in, rad_out],[0+90, 120+90, 240+90]]]
+        gears = platter['gears']
+        rad_in = gears['Ps']['axle_radius']
+        rad_out = platter['base_ring_radius'] + gears['Pp0']['axle_radius']
+        geneva_ring_radius = 0.5 * (gears['G']['specs']['radius_ref'] + gears['Pr']['specs']['radius_ref'])
+        center_rings = [[rad_out, thinnest_material_wall], [geneva_ring_radius, 2*thinnest_material_wall]]
+        connect_out = all_platters['Mars']['base_ring_radius'] + all_platters['Mars']['gears']['Pp0']['axle_radius']
+        connect_rings = [[[rad_in, connect_out],[0, 90, 180, 270]]]
         ring_radius = None
         ring_base_z = platter['base_z']
         make_base_ring(platter_name, ring_radius, ring_base_z,
@@ -915,8 +931,9 @@ def do_platter_adjustments(platter_name):
                      [270.0+37.0-2.0+10.0,  0.0], 
                      [360.0,  0.0], 
                      ]
-        center_rings = [rad_out]
-        connect_rings = [[[rad_in, rad_out],[90, 270]]]
+        center_rings = [[rad_out, thinnest_material_wall]]
+#        connect_rings = [[[rad_in, rad_out],[0, 90, 180, 270]]]
+        connect_rings = None
         riser_rings = [
                        [rad_out, riser_planA],
                        [rad_out, riser_planB],
@@ -968,11 +985,12 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
 
     if center_rings is not None:
         for ring in center_rings:
-            ring_out = ring + 0.5 * thinnest_material_wall
+            this_ring_top = ring_bottom + ring[1]
+            ring_out = ring[0] + 0.5 * thinnest_material_wall
             ring_in = ring_out - thinnest_material_wall
             ring_verts = make_cylinder_verts(ring_in, ring_out)
             feet['verts'].append(ring_verts)
-            feet['verts_z'].append([ring_bottom, ring_top])
+            feet['verts_z'].append([ring_bottom, this_ring_top])
 
     if connect_rings is not None:
         for ring in connect_rings:
@@ -1021,6 +1039,8 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
             feet['verts'].append(riser_verts)
             feet['verts_z'].append([ring_bottom, ring_top])
 
+    ###################################
+    ## This section is old and should be deleted
     if ring_radius is not None:
         # Outer ring
         ring_out1 = ring_radius + 0.5 * span_dist
@@ -1268,11 +1288,8 @@ class ColladaModel:
 
     def start(self):
         self.nodes = []
+        self.materials = []
         self.mesh = col.Collada()
-        effect = col.material.Effect("effect0", [], "phong", diffuse=(1,0,0), specular=(0,1,0))
-        self.mat = col.material.Material("material0", "mymaterial", effect)
-        self.mesh.effects.append(effect)
-        self.mesh.materials.append(self.mat)
 
     def finish(self):
         myscene = col.scene.Scene("myscene", self.nodes)
@@ -1280,7 +1297,16 @@ class ColladaModel:
         self.mesh.scene = myscene
         self.mesh.write(self.file_name)
 
-    def add_extruded_tristrip_quad_mesh(self, verts, verts_z, pos=None, rot=None, closed=True):
+    def new_material(self, diffuse_color, specular_color):
+        mat_index = len(self.materials)
+        effect = col.material.Effect("effect0"+str(mat_index), [], "phong", diffuse=diffuse_color, specular=specular_color)
+        mat = col.material.Material("material0"+str(mat_index), "mymaterial"+str(mat_index), effect)
+        self.mesh.effects.append(effect)
+        self.mesh.materials.append(mat)
+        self.materials.append(mat)
+        return mat
+
+    def add_extruded_tristrip_quad_mesh(self, material, verts, verts_z, pos=None, rot=None, closed=True):
         num_strip_verts = len(verts)
         num_sections = num_strip_verts >> 1
         num_quads = num_sections << 2
@@ -1349,11 +1375,11 @@ class ColladaModel:
         input_list.addInput(0, 'VERTEX', "#cubeverts-array"+str(node_index))
         input_list.addInput(1, 'NORMAL', "#cubenormals-array"+str(node_index))
 
-        triset = geom.createTriangleSet(indices, input_list, "materialref")
+        triset = geom.createTriangleSet(indices, input_list, "materialref"+str(node_index))
         geom.primitives.append(triset)
         self.mesh.geometries.append(geom)
 
-        matnode = col.scene.MaterialNode("materialref", self.mat, inputs=[])
+        matnode = col.scene.MaterialNode("materialref"+str(node_index), material, inputs=[])
         geomnode = col.scene.GeometryNode(geom, [matnode])
         node = col.scene.Node("node0"+str(node_index), children=[geomnode])
         self.nodes.append(node)
@@ -1402,15 +1428,20 @@ def build_all():
     for platter_name in platters_to_make:
         do_platter_adjustments(platter_name)
 
-    collada_model = ColladaModel('output/travelers_pocketwatch.dae')
+    if use_collada:
+        collada_model = ColladaModel('output/travelers_pocketwatch.dae')
+    else:
+        collada_model = None
     #collada_model.add_test_object('cube', 'cube_parent')
 
     for platter_name in platters_to_make:
         print('  Building platter {} ---------'.format(platter_name))
         write_stl_platter(platter_name, collada_model,
-                          './output/platter_{}_gears.stl'.format(platter_name),
+                          './output/platter_{}_drive_gears.stl'.format(platter_name),
+                          './output/platter_{}_planet_gears.stl'.format(platter_name),
                           './output/platter_{}_frame.stl'.format(platter_name))
-    collada_model.finish()
+    if collada_model is not None:
+        collada_model.finish()
     print_checks()
 
 if __name__ == "__main__":
