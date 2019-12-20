@@ -770,7 +770,7 @@ def add_ball_bearings(gear, count, center, placement_radius):
     gear['ball_bearings'] = bearings
 
 
-def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
+def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_rest=True):
     platter = all_platters[platter_name]
 
     strut_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
@@ -787,7 +787,7 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
 
 
     ## make the axle
-    axle1_radius = gear['axle_radius'] - slide_buffer_dist
+    axle1_radius = gear['axle_radius'] - 0.5 * ball_bearing_radius - slide_buffer_dist
     axle1_in = axle1_radius - thinnest_material_wall
     axle1_out = axle1_radius
     axle1_verts = make_cylinder_verts(axle1_in, axle1_out)
@@ -804,21 +804,22 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     add_ball_bearings(feet, count = bearing_count, center=bearing_center, placement_radius=placement_radius)
 
     # make the axle bottom-rest
-    axle2_in = axle1_in
-    axle2_out = 0.5 * gear['specs']['radius_ref'] + 0.5 * gear['specs']['radius_inner']
-    if axle2_out < axle2_in + 2 * strut_outer_radius:
-        axle2_out = axle2_in + 2 * strut_outer_radius
-    axle2_top = axle1_top - tooth_rim_thickness - slide_buffer_dist
-    gear['axle_rest_z'] = axle2_top
-    axle2_bottom = axle2_top - thinnest_material_wall
-    axle2_verts = make_cylinder_verts(axle2_in, axle2_out)
-    feet['verts'].append(axle2_verts + axle1_pos)
-    feet['verts_z'].append([axle2_bottom, axle2_top])
+    if do_bottom_rest:
+        axle2_in = axle1_in
+        axle2_out = 0.5 * gear['specs']['radius_ref'] + 0.5 * gear['specs']['radius_inner']
+        if axle2_out < axle2_in + 2 * strut_outer_radius:
+            axle2_out = axle2_in + 2 * strut_outer_radius
+        axle2_top = axle1_top - tooth_rim_thickness - slide_buffer_dist
+        gear['axle_rest_z'] = axle2_top
+        axle2_bottom = axle2_top - thinnest_material_wall
+        axle2_verts = make_cylinder_verts(axle2_in, axle2_out)
+        feet['verts'].append(axle2_verts + axle1_pos)
+        feet['verts_z'].append([axle2_bottom, axle2_top])
 
-    bearing_center = axle1_pos + (0.0, 0.0, axle2_top - 0.5 * ball_bearing_radius + platter['pos'][2])
-    placement_radius = gear['specs']['radius_inner'] - 2.0 * ball_bearing_radius
-    bearing_count = int(2.0 * np.pi * placement_radius / (4 * ball_bearing_radius))
-    add_ball_bearings(feet, count = bearing_count, center=bearing_center, placement_radius=placement_radius)
+        bearing_center = axle1_pos + (0.0, 0.0, axle2_top - 0.5 * ball_bearing_radius + platter['pos'][2])
+        placement_radius = gear['specs']['radius_inner'] - 2.0 * ball_bearing_radius
+        bearing_count = int(2.0 * np.pi * placement_radius / (4 * ball_bearing_radius))
+        add_ball_bearings(feet, count = bearing_count, center=bearing_center, placement_radius=placement_radius)
 
     # Struts
     if 0:
@@ -873,6 +874,9 @@ def make_platter_supports(platter_name):
 
     for gear_name,gear in platter['gears'].items():
         strut_bottom = platter['base_z']
+        if platter_name in ['Mars'] and gear_name in ['Da']:
+            strut_top = gear['pos'][2]
+            make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_rest=False)
         if gear_name in ['Db']:
             strut_top = gear['pos'][2]
             make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top)
@@ -905,6 +909,36 @@ def set_platter_base(platter_name):
     else:
         platter['base_z'] = -2.0
 
+def make_versatile_connector(plan):
+    """
+    Offset rings to connect any two circles of different sizes and heights
+    """
+    platter = all_platters[plan['add_to_platter']]
+    part = platter['gears'][plan['add_to_part']]
+    radius = 0.5 * (plan['radius0'] + plan['radius1'])
+    center = np.array(plan['center'], dtype=np.float64)
+    xy_offset = 0.5 * abs(plan['radius0'] - plan['radius1'])
+    ring_in = radius - 0.5 * plan['thickness_xy']
+    ring_out = radius + 0.5 * plan['thickness_xy']
+    ring_verts = make_cylinder_verts(ring_in, ring_out)
+    zdiff = plan['z1'] - plan['z0']
+    for i,rv in enumerate(ring_verts):
+        t = i / float(len(ring_verts))
+        theta = 2.0 * np.pi * t
+        sval = np.sin(theta)
+        rv[0] -= xy_offset
+        rv[2] += 0.5 + (0.5 * sval) * zdiff + plan['z0']
+    for ring_angle in plan['ring_angles']:
+        sval = np.sin(np.radians(ring_angle))
+        cval = np.cos(np.radians(ring_angle))
+        ring_verts2 = []
+        for i,rv in enumerate(ring_verts):
+            rv2 = np.array([rv[0] * cval + rv[1] * sval,
+                            rv[1] * cval - rv[0] * sval,
+                            rv[2]]) + center
+            ring_verts2.append(rv2)
+        part['verts'].append(ring_verts2)
+        part['verts_z'].append([0.0, plan['thickness_z']])
 
 def do_platter_adjustments(platter_name):
     platter = all_platters[platter_name]
@@ -924,6 +958,30 @@ def do_platter_adjustments(platter_name):
         connect_rings = [[[rad_in, connect_out],[0, 90, 180, 270]]]
         ring_radius = None
         ring_base_z = platter['base_z']
+        make_versatile_connector({
+                                'add_to_platter':'Drive',
+                                'add_to_part':'feet',
+                                'center':[0,0,0],
+                                'radius0':all_platters['Drive']['gears']['Ps']['axle_radius'] - 1.5 * thinnest_material_wall,
+                                'radius1':all_platters['Mars']['gears']['Da']['axle_radius'] - 1.5 * thinnest_material_wall,
+                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 0.5 * thinnest_material_wall,
+                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.5 * thinnest_material_wall,
+                                'thickness_xy':thinnest_material_wall,
+                                'thickness_z':1.0 * thinnest_material_wall,
+                                'ring_angles':[0, 120, 240],
+                                })
+        make_versatile_connector({
+                                'add_to_platter':'Drive',
+                                'add_to_part':'Ps',
+                                'center':[0,0,0],
+                                'radius0':all_platters['Drive']['gears']['Ps']['specs']['radius_inner'] - 1.5 * thinnest_material_wall,
+                                'radius1':all_platters['Mars']['gears']['Da']['specs']['radius_inner'] - 1.5 * thinnest_material_wall,
+                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 0.5 * thinnest_material_wall,
+                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.5 * thinnest_material_wall,
+                                'thickness_xy':thinnest_material_wall,
+                                'thickness_z':1.0 * thinnest_material_wall,
+                                'ring_angles':[0, 120, 240],
+                                })
         make_base_ring(platter_name, ring_radius, ring_base_z,
                        center_rings=center_rings, connect_rings=connect_rings,
                        riser_height=riser_height, riser_rings=riser_rings)
