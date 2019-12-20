@@ -29,6 +29,8 @@ geneva_thickness = 1.0
 each_platter_z = tooth_rim_thickness * 2 * 4.0
 geneva_outer_radius = 20.0
 planet_outer_ref_radius = 15.0
+ball_bearing_radius = 0.5 * thinnest_material_wall
+
 
 strut_outer_radius = 1.0
 strut_inner_radius = strut_outer_radius - thinnest_material_wall
@@ -42,6 +44,8 @@ strut_inner_radius = strut_outer_radius - thinnest_material_wall
                  L (-27, 29, 13, 23, 13, -7, 30, 37)]
       error_degrees_per_year [0.2376797302003289, 0.4783273624581241, -0.34284199857996345, 0.6293529646316143]
 """
+
+ball_bearing_faces = None
 
 all_platters = {
     'Drive': {
@@ -533,6 +537,71 @@ def write_one_quad(fp, v0, v1, v2, v3, n=None):
     fp.write('    endloop\n')
     fp.write('  endfacet\n')
 
+def write_one_tri(fp, v0, v1, v2, n=None):
+    if n is None:
+        n = normalized(np.cross(v0 - v1, v2 - v1))
+    fp.write('  facet normal {} {} {}\n'.format(n[0], n[1], n[2]))
+    fp.write('    outer loop\n')
+    fp.write('      vertex {} {} {}\n'.format(v0[0], v0[1], v0[2]))
+    fp.write('      vertex {} {} {}\n'.format(v1[0], v1[1], v1[2]))
+    fp.write('      vertex {} {} {}\n'.format(v2[0], v2[1], v2[2]))
+    fp.write('    endloop\n')
+    fp.write('  endfacet\n')
+
+def write_stl_ball_bearing(fp, collada_model, pos):
+    global ball_bearing_faces
+    if ball_bearing_faces is None:
+        num_lat_segments = 6
+        num_long_segments = 12 # must be even
+        zflip = np.array([1.0, 1.0, -1.0])
+        equator_verts = []
+        rib_verts = []
+        for seg in range(num_long_segments):
+            t = seg / float(num_long_segments)
+            theta = t * 2.0 * np.pi
+            sval = np.sin(theta)
+            cval = np.cos(theta)
+            equator_verts.append(np.array([cval, sval, 1.0]))
+        for seg in range(num_lat_segments):
+            t = seg / float(num_lat_segments)
+            theta = t * 0.5 * np.pi
+            sval = np.sin(theta)
+            cval = np.cos(theta)
+            rib_verts.append(np.array([cval, cval, sval]))
+
+        ball_bearing_faces = []
+        for y in range(num_lat_segments - 1):
+            rib0 = rib_verts[y + 0]
+            rib1 = rib_verts[y + 1]
+            for x in range(num_long_segments):
+                eq0 = equator_verts[(x + 0) % num_long_segments]
+                eq1 = equator_verts[(x + 1) % num_long_segments]
+                q0 = eq0 * rib0 * ball_bearing_radius
+                q1 = eq0 * rib1 * ball_bearing_radius
+                q2 = eq1 * rib0 * ball_bearing_radius
+                q3 = eq1 * rib1 * ball_bearing_radius
+                ball_bearing_faces.append([q1, q0, q3, q2])
+                ball_bearing_faces.append([q0*zflip, q1*zflip, q2*zflip, q3*zflip])
+        # Now do the endcaps
+        rib = rib_verts[num_lat_segments - 1]
+        pole = np.array([0.0, 0.0, ball_bearing_radius])
+        for x in range(num_long_segments):
+            eq0 = equator_verts[(x + 0) % num_long_segments]
+            eq1 = equator_verts[(x + 1) % num_long_segments]
+            t0 = eq0 * rib * ball_bearing_radius
+            t1 = eq1 * rib * ball_bearing_radius
+            t2 = pole
+            ball_bearing_faces.append([t0, t1, t2])
+            ball_bearing_faces.append([t1*zflip, t0*zflip, t2*zflip])
+
+
+    for face in ball_bearing_faces:
+        if len(face) == 4:
+            write_one_quad(fp, face[0]+pos, face[1]+pos, face[2]+pos, face[3]+pos)
+        elif len(face) == 3:
+            write_one_tri(fp, face[0]+pos, face[1]+pos, face[2]+pos)
+
+
 def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=None, closed=True):
     if pos is None:
         pos = np.array([0,0,0])
@@ -575,6 +644,7 @@ def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet
     fp_drive_gears = open(drive_gears_file_name, 'w')
     fp_planet_gears = open(planet_gears_file_name, 'w')
     fp_frame = open(frame_file_name, 'w')
+
     for gear_name,gear in platter['gears'].items():
         print('  Writing gear {}:{}'.format(platter_name, gear_name))
         if gear_name in ['feet']:
@@ -593,6 +663,11 @@ def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet
                 write_stl_tristrip_quads(fp, collada_model, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
                 if collada_model is not None:
                     collada_model.add_extruded_tristrip_quad_mesh(material, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
+        bearings = gear.get('ball_bearings', None)
+        if bearings is not None:
+            for bearing_pos in bearings:
+                write_stl_ball_bearing(fp, collada_model, pos=bearing_pos)
+
         fp.write('endsolid OpenSCAD_Model\n')
     fp_drive_gears.close()
     fp_planet_gears.close()
@@ -681,6 +756,20 @@ def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=No
             verts[inner_vert_index] += center
     return verts
 
+def add_ball_bearings(gear, count, center, placement_radius):
+    bearings = gear.get('ball_bearings', [])
+    for i in range(count):
+        t = i / float(count)
+        theta = 2.0 * np.pi * t;
+        sval = np.sin(theta)
+        cval = np.cos(theta)
+        v = np.array([center[0] + cval * placement_radius,
+                      center[1] + sval * placement_radius,
+                      center[2]])
+        bearings.append(v)
+    gear['ball_bearings'] = bearings
+
+
 def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     platter = all_platters[platter_name]
 
@@ -709,6 +798,11 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     feet['verts'].append(axle1_verts + axle1_pos)
     feet['verts_z'].append([axle1_bottom, axle1_top])
 
+    bearing_center = axle1_pos + (0.0, 0.0, 0.5 * (axle1_top + axle1_bottom) + platter['pos'][2])
+    placement_radius = axle1_out - 0.5 * ball_bearing_radius
+    bearing_count = int(2.0 * np.pi * placement_radius / (4 * ball_bearing_radius))
+    add_ball_bearings(feet, count = bearing_count, center=bearing_center, placement_radius=placement_radius)
+
     # make the axle bottom-rest
     axle2_in = axle1_in
     axle2_out = 0.5 * gear['specs']['radius_ref'] + 0.5 * gear['specs']['radius_inner']
@@ -720,6 +814,11 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top):
     axle2_verts = make_cylinder_verts(axle2_in, axle2_out)
     feet['verts'].append(axle2_verts + axle1_pos)
     feet['verts_z'].append([axle2_bottom, axle2_top])
+
+    bearing_center = axle1_pos + (0.0, 0.0, axle2_top - 0.5 * ball_bearing_radius + platter['pos'][2])
+    placement_radius = gear['specs']['radius_inner'] - 2.0 * ball_bearing_radius
+    bearing_count = int(2.0 * np.pi * placement_radius / (4 * ball_bearing_radius))
+    add_ball_bearings(feet, count = bearing_count, center=bearing_center, placement_radius=placement_radius)
 
     # Struts
     if 0:
@@ -819,8 +918,8 @@ def do_platter_adjustments(platter_name):
         gears = platter['gears']
         rad_in = gears['Ps']['axle_radius']
         rad_out = platter['base_ring_radius'] + gears['Pp0']['axle_radius']
-        geneva_ring_radius = 0.5 * (gears['G']['specs']['radius_ref'] + gears['Pr']['specs']['radius_ref'])
-        center_rings = [[rad_out, thinnest_material_wall], [geneva_ring_radius, 2*thinnest_material_wall]]
+        geneva_ring_radius = 0.25 * gears['Pr']['outer_rail'] + gears['Pr']['specs']['radius_outer']
+        center_rings = [[rad_out, thinnest_material_wall], [geneva_ring_radius, 1.5*thinnest_material_wall]]
         connect_out = all_platters['Mars']['base_ring_radius'] + all_platters['Mars']['gears']['Pp0']['axle_radius']
         connect_rings = [[[rad_in, connect_out],[0, 90, 180, 270]]]
         ring_radius = None
