@@ -62,7 +62,7 @@ all_platters = {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':27},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':13},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':29, 'outer_rail':3.5},
-            'Grotor' :{'type':'rotor'},
+            'Grotor' :{'type':'rotor', 'pin_shaft':0.25},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -82,10 +82,10 @@ all_platters = {
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':0},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':3.5},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
-            'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':1},
+            'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':None},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
-            'Grotor' :{'type':'rotor'},
+            'Grotor' :{'type':'rotor', 'no_rotor_base':True},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -473,7 +473,10 @@ def build_one_rotor(rotor, geneva):
     verts = np.ndarray((num_verts, 3), dtype=np.float64)
     pin_verts = np.ndarray((num_verts, 3), dtype=np.float64)
     disc_verts = np.ndarray((num_verts, 3), dtype=np.float64)
-    # Outer verts
+    pin_shaft = rotor.get('pin_shaft', None)
+    rotor['verts'] = []
+    rotor['verts_z'] = []
+    do_base = not rotor.get('no_rotor_base', False)
     for seg in range(num_segments):
         t = float(seg) / float(num_segments)
         theta = t * 2.0 * np.pi
@@ -481,6 +484,8 @@ def build_one_rotor(rotor, geneva):
         cval = np.cos(theta)
         outer_radius = rotor['hub_radius'] - slide_buffer_dist
         inner_radius = outer_radius - thinnest_material_wall
+        if pin_shaft is not None:
+            inner_radius = pin_shaft
         outer_vert_index = seg*2
         inner_vert_index = outer_vert_index + 1
         verts[outer_vert_index][0] = outer_radius * sval
@@ -499,20 +504,28 @@ def build_one_rotor(rotor, geneva):
         pin_verts[inner_vert_index][1] = inner_pin_radius * cval
         pin_verts[inner_vert_index][2] = 0.0
 
-        outer_disc_radius = 1.0 * rotor['pin_radius'] + rotor['arm_length']
-        inner_disc_radius = outer_disc_radius - thinnest_material_wall
-        disc_verts[outer_vert_index][0] = outer_disc_radius * sval
-        disc_verts[outer_vert_index][1] = outer_disc_radius * cval
-        disc_verts[outer_vert_index][2] = 0.0
-        disc_verts[inner_vert_index][0] = inner_disc_radius * sval
-        disc_verts[inner_vert_index][1] = inner_disc_radius * cval
-        disc_verts[inner_vert_index][2] = 0.0
+        if do_base:
+            outer_disc_radius = 1.0 * rotor['pin_radius'] + rotor['arm_length']
+            inner_disc_radius = outer_disc_radius - thinnest_material_wall
+            if pin_shaft is not None:
+                inner_disc_radius = pin_shaft
+            disc_verts[outer_vert_index][0] = outer_disc_radius * sval
+            disc_verts[outer_vert_index][1] = outer_disc_radius * cval
+            disc_verts[outer_vert_index][2] = 0.0
+            disc_verts[inner_vert_index][0] = inner_disc_radius * sval
+            disc_verts[inner_vert_index][1] = inner_disc_radius * cval
+            disc_verts[inner_vert_index][2] = 0.0
 
-    rotor['verts'] = [verts, pin_verts, disc_verts]
-    rotor['verts_z'] = [[-1.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness],
-                        [-1.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness],
-                        [-1.5 * thinnest_material_wall, -0.5 * thinnest_material_wall]]
-    return verts
+    rotor['verts'].append(verts)
+    rotor['verts_z'].append([-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness])
+
+    rotor['verts'].append(pin_verts)
+    rotor['verts_z'].append([-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness])
+
+    if do_base:
+        rotor['verts'].append(disc_verts)
+        rotor['verts_z'].append([-1.5 * thinnest_material_wall, -0.5 * thinnest_material_wall])
+
 
 def normalized(v):
     return v / np.linalg.norm(v)
@@ -900,12 +913,13 @@ def make_platter_supports(platter_name):
 
 def set_platter_base(platter_name):
     platter = all_platters[platter_name]
+    drive_drop = -1.5 * thinnest_material_wall
     if platter_name == 'Drive':
-        platter['base_z'] = -1.5 * thinnest_material_wall
+        platter['base_z'] = drive_drop
     elif platter_name == 'Mars':
-        platter['base_z'] = all_platters['Drive']['base_z'] - each_platter_z
+        platter['base_z'] = drive_drop - each_platter_z
     elif platter_name == 'Luna':
-        platter['base_z'] = all_platters['Drive']['base_z'] - 2 * each_platter_z
+        platter['base_z'] = drive_drop - 2 * each_platter_z
     else:
         platter['base_z'] = -2.0
 
@@ -1104,6 +1118,20 @@ def do_platter_adjustments(platter_name):
         make_base_ring(platter_name, ring_radius, ring_base_z,
                        center_rings=center_rings, connect_rings=connect_rings,
                        riser_height=riser_height, riser_rings=riser_rings)
+        # Connect Mars rotor to Db
+        make_versatile_connector({
+                                'add_to_platter':'Mars',
+                                'add_to_part':'Db',
+                                'center':[0,0,0],
+                                'radius0':all_platters['Mars']['gears']['Db']['axle_radius'] + 1.5 * thinnest_material_wall,
+                                'radius1':all_platters['Mars']['gears']['Grotor']['hub_radius'] - 1.0 * thinnest_material_wall + slide_buffer_dist,
+                                'z0':all_platters['Mars']['gears']['Db']['pos'][2] + 0.5 * spur_teeth_thickness + 1.5 * thinnest_material_wall + 0.5 * slide_buffer_dist,
+                                'z1':all_platters['Mars']['gears']['Db']['pos'][2] + 0.5 * spur_teeth_thickness + 1.5 * thinnest_material_wall + 0.5 * slide_buffer_dist,
+                                'thickness_xy':thinnest_material_wall,
+                                'thickness_z':1.0 * thinnest_material_wall,
+                                'ring_angles':list(range(0, 360, 360//5)),
+                                })
+
     elif platter_name in ['Venus', 'Mercury']:
         riser_height = None
         riser_plan = None
@@ -1350,13 +1378,17 @@ def build_one_platter(platter_name):
         elif gtype == 'rotor':
             build_one_rotor(gear, gearG)
     geneva_z = 0.0
-    planetary_z = geneva_z + 0.5 * thinnest_material_wall + 0.5 * spur_teeth_thickness
+    planetary_z = geneva_z + 2.5 * thinnest_material_wall + 0.5 * spur_teeth_thickness
     if dual_drive:
         mini_driver_z = geneva_z - 2.0 * thinnest_material_wall - 0.5 * spur_teeth_thickness
         mini_driver2_z = geneva_z - 1.5 * thinnest_material_wall - 0.5 * spur_teeth_thickness
         driver_z = mini_driver_z - 1.0 * spur_teeth_thickness - 0.0 * thinnest_material_wall
     else:
+        driver_z = geneva_z - slide_buffer_dist - 2.0 * thinnest_material_wall - 0.5 * spur_teeth_thickness
+    if platter_name == 'Drive':
+        planetary_z = geneva_z + 0.5 * thinnest_material_wall + 0.5 * spur_teeth_thickness
         driver_z = geneva_z - slide_buffer_dist - 0.5 * thinnest_material_wall - 0.5 * spur_teeth_thickness
+
     gearG['pos'] = np.array([0.0, 0.0, 0.0])
     gearG['rot'] = 0.5 * tooth_theta(gearG) + np.radians(rotor_azimuth)
     gearPs['pos'] = np.array([0.0, 0.0, planetary_z])
@@ -1573,7 +1605,7 @@ class ColladaModel:
 
 
 def build_all():
-    platters_to_make = all_platters.keys()
+    platters_to_make = ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']
     for platter_name in platters_to_make:
         make_platter_specs(platter_name)
     for platter_name in platters_to_make:
