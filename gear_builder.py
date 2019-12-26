@@ -78,14 +78,15 @@ all_platters = {
         'rotor_azimuth':-90,
         'scale_base_ring_radius':1.0,
         'gears': {
-            'G'      :{'type':'geneva', 'inout':'out', 'teeth':28},
+            'G'      :{'type':'geneva', 'inout':'in', 'teeth':28},
+#            'G2'      :{'type':'geneva', 'inout':'out', 'teeth':28},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':0},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':3.5},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':None},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
-            'Grotor' :{'type':'rotor', 'no_rotor_base':True},
+            'Grotor' :{'type':'rotor', 'no_rotor_base':True, 'outset_mult':0.5},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -363,10 +364,11 @@ def build_one_spur(gear):
 def make_geneva_tooth_table(gear, rotor):
     num_teeth = gear['teeth']
     pitch_ref = gear['specs']['pitch_ref']
+    in_sign = -1.0 if gear['inout'] == 'in' else 1.0
     r = gear['specs']['radius_ref']
     total_tooth_theta = 2.0 * np.pi / num_teeth
     num_segments = 20
-    groove_bottom_radius = r - rotor['arm_length'] + rotor['outset']
+    groove_bottom_radius = r - in_sign * (rotor['arm_length'] - rotor['outset'])
 #    groove_bottom_radius = r - 0.1
     groove_half_width = rotor['pin_radius']
     groove_half_theta_inner = np.arctan(groove_half_width/groove_bottom_radius)
@@ -380,7 +382,7 @@ def make_geneva_tooth_table(gear, rotor):
         t = float(seg) / float(small_curve_segs)
         theta = np.radians(t * 90)
         x = rotor['pin_radius'] * np.sin(theta)
-        y = groove_bottom_radius - rotor['pin_radius'] * np.cos(theta)
+        y = groove_bottom_radius - in_sign * rotor['pin_radius'] * np.cos(theta)
         result_radius += [y]
         result_theta += [np.arctan(x/y)]
 
@@ -392,15 +394,15 @@ def make_geneva_tooth_table(gear, rotor):
 
     # rotor hub span
     span_segs = 30
-    d = rotor['outset'] + r
+    d = in_sign * rotor['outset'] + r
     for sseg in range(1, span_segs):
         sst = float(sseg) / float(span_segs)
         seg_theta = sst * (0.5 * total_tooth_theta - groove_half_theta_outer) + groove_half_theta_outer
         seg_radius = r
         h = d * np.abs(np.sin(0.5 * total_tooth_theta - seg_theta))
         if h < rotor['hub_radius']:
-            new_r = d - np.sqrt(rotor['hub_radius'] * rotor['hub_radius'] - h * h)
-            if new_r < seg_radius:
+            new_r = d - in_sign * np.sqrt(rotor['hub_radius'] * rotor['hub_radius'] - h * h)
+            if in_sign * new_r < in_sign * seg_radius:
                 seg_radius = new_r
         result_radius += [seg_radius]
         result_theta += [seg_theta]
@@ -416,6 +418,7 @@ def build_one_geneva(gear, rotor):
     num_teeth = gear['teeth']
     num_verts = 2 * num_teeth * len(tooth_table[0])
     verts = np.ndarray((num_verts, 3), dtype=np.float64)
+    in_sign = -1.0 if gear['inout'] == 'in' else 1.0
     # print(verts)
     # print(len(verts))
     # print(verts[0])
@@ -454,14 +457,15 @@ def build_one_geneva(gear, rotor):
             d2 = normalized(next_outer_vert - this_outer_vert)
             c = np.cross(d1, d2)
             inner_vert_dir = np.sign(c[2]) * normalized(d1 + d2)
-            verts[inner_vert_index] = this_outer_vert + tooth_rim_thickness * inner_vert_dir
+            verts[inner_vert_index] = this_outer_vert + in_sign * tooth_rim_thickness * inner_vert_dir
     gear['verts'] = [verts]
-    gear['verts_z'] = [[-0.5 * thinnest_material_wall, 0.5 * thinnest_material_wall]]
+    gear['verts_z'] = [[in_sign * -0.5 * thinnest_material_wall, in_sign * 0.5 * thinnest_material_wall]]
     return verts
 
 def configure_rotor(rotor, geneva):
     print('geneva[\'specs\'][\'pitch_ref\']',geneva['specs']['pitch_ref'])
     rotor['outset'] = geneva['specs']['pitch_ref'] * 0.2       # displacement from rim of G
+    rotor['outset'] *= rotor.get('outset_mult', 1.0)
     rotor['arm_length'] = np.sqrt((geneva['specs']['pitch_ref'] / 2.0) * (geneva['specs']['pitch_ref'] / 2.0) + rotor['outset'] * rotor['outset'])
     rotor['hub_radius'] = rotor['arm_length'] * 0.6   # radius of the hub
     rotor['pin_radius'] = rotor['arm_length'] * 0.2   # radius of the driver pin
@@ -1334,13 +1338,14 @@ def build_one_platter(platter_name):
         print('  A gearG[\'specs\'][\'pitch_ref\']',gearG['specs']['pitch_ref'])
 
     configure_rotor(rotor, gearG)
+    g_in_sign = -1.0 if gearG['inout'] == 'in' else 1.0
 
     if gearDa:
         if dual_drive:
             dadb_current = gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref'] + gearDr1['specs']['radius_ref'] + gearDr2['specs']['radius_ref']
         else:
             dadb_current = gearDa['specs']['radius_ref'] + gearDb['specs']['radius_ref']
-        dadb_desired = gearG['specs']['radius_ref'] + rotor['outset']
+        dadb_desired = gearG['specs']['radius_ref'] + g_in_sign * rotor['outset']
         dadb_fix = dadb_desired / dadb_current
         scale_gear_specs(gearDa, dadb_fix)
         scale_gear_specs(gearDb, dadb_fix)
@@ -1431,7 +1436,7 @@ def build_one_platter(platter_name):
             gearDr1['pos'] = np.array([gearDb['pos'][0], gearDb['pos'][1], mini_driver_z])
             gearDr2['pos'] = np.array([0.0, gearDr1['pos'][1] + gearDr1['specs']['radius_ref'] + gearDr2['specs']['radius_ref'], mini_driver2_z])
             gearDr2['rot'] = 0.5 * tooth_theta(gearDr2)
-    rotor_dist = gearG['specs']['radius_ref'] + rotor['outset']
+    rotor_dist = gearG['specs']['radius_ref'] + g_in_sign * rotor['outset']
     sval = np.sin(np.radians(rotor_azimuth))
     cval = np.cos(np.radians(rotor_azimuth))
     rotor['pos'] = np.array([sval*rotor_dist, cval*rotor_dist, gearG['pos'][2]])
