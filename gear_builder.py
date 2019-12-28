@@ -8,6 +8,7 @@ If you want to use it, please email me at pocketwatch@machinelevel.com
 
 """
 import numpy as np
+import math
 from ej_outer_tooth_shapes import outer_tooth_shapes_p10
 try:
     import collada as col  # http://pycollada.github.io/creating.html
@@ -24,6 +25,7 @@ spur_teeth_thickness = thinnest_material_wall
 min_material_thickness = 0.4
 slide_buffer_dist = 0.1
 spur_tooth_pitch = 2.0
+tooth_lateral_thickness = 0.6  # The thickness of the tooth "hollow" outline
 tooth_rim_thickness = 0.4
 geneva_thickness = 1.0
 each_platter_z = tooth_rim_thickness * 2 * 4.0
@@ -71,16 +73,16 @@ all_platters = {
         'use_dual_drive': False,
         'pos': [0.0, 0.0, -1 * each_platter_z],
         'planetary_mult': 1,
-        'scale_geneva': 1.0,
+        'scale_geneva': 0.9,
         'scale_planetary': 2.4,
         'rings_under_planets':True,
         'support_platter':None,
         'rotor_azimuth':-90,
         'scale_base_ring_radius':1.0,
         'gears': {
-            'G'      :{'type':'geneva', 'inout':'in', 'teeth':28},
+            'G'      :{'type':'geneva', 'inout':'in', 'teeth':28, 'inner_rail':1.0},
 #            'G2'      :{'type':'geneva', 'inout':'out', 'teeth':28},
-            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':0},
+            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':1.0},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':3.5},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':None},
@@ -329,7 +331,7 @@ def build_one_spur(gear):
             d2 = normalized(next_outer_vert - this_outer_vert)
             c = np.cross(d1, d2)
             inner_vert_dir = outer_mult * np.sign(c[2]) * normalized(d1 + d2)
-            verts[inner_vert_index] = this_outer_vert + tooth_rim_thickness * inner_vert_dir
+            verts[inner_vert_index] = this_outer_vert + tooth_lateral_thickness * inner_vert_dir
 #            verts[inner_vert_index] = this_outer_vert * 0.95
     gear['verts'] = [verts]
     gear['verts_z'] = [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
@@ -424,6 +426,19 @@ def build_one_geneva(gear, rotor):
     # print(verts[0])
     # exit()
     specs = gear['specs']
+ 
+    # Measure the min/max radius of the physical gear
+    rad_min = 1000000.0
+    rad_max = 0.0
+    for tt in tooth_table:
+        r = tt[1]
+        if r < rad_min:
+            rad_min = r
+        if r > rad_max:
+            rad_max = r
+    specs['radius_inner'] = rad_min
+    specs['radius_outer'] = rad_max
+ 
     # Outer verts
     for tooth in range(num_teeth):
         tooth_t = float(tooth) / float(num_teeth)
@@ -457,7 +472,7 @@ def build_one_geneva(gear, rotor):
             d2 = normalized(next_outer_vert - this_outer_vert)
             c = np.cross(d1, d2)
             inner_vert_dir = np.sign(c[2]) * normalized(d1 + d2)
-            verts[inner_vert_index] = this_outer_vert + in_sign * tooth_rim_thickness * inner_vert_dir
+            verts[inner_vert_index] = this_outer_vert + in_sign * tooth_lateral_thickness * inner_vert_dir
     gear['verts'] = [verts]
     gear['verts_z'] = [[in_sign * -0.5 * thinnest_material_wall, in_sign * 0.5 * thinnest_material_wall]]
     return verts
@@ -927,6 +942,23 @@ def set_platter_base(platter_name):
     else:
         platter['base_z'] = -2.0
 
+def fix_inner_ring_verts(verts, thickness):
+    """
+    move odd verts to follow the path made by the even verts, offset by a set distance
+    """
+    num_verts = len(verts)
+    for i in range(num_verts >> 1):
+        outer_vert_index = i*2 + 0
+        inner_vert_index = i*2 + 1
+        prev_outer_vert = verts[(outer_vert_index - 2 + num_verts) % num_verts]
+        this_outer_vert = verts[outer_vert_index]
+        next_outer_vert = verts[(outer_vert_index + 2) % num_verts]
+        d1 = normalized(prev_outer_vert - this_outer_vert)
+        d2 = normalized(next_outer_vert - this_outer_vert)
+        c = np.cross(d1, d2)
+        inner_vert_dir = np.sign(c[2]) * normalized(d1 + d2)
+        verts[inner_vert_index] = this_outer_vert + thickness * inner_vert_dir
+
 def make_versatile_connector(plan):
     """
     Offset rings to connect any two circles of different sizes and heights
@@ -934,18 +966,52 @@ def make_versatile_connector(plan):
     platter = all_platters[plan['add_to_platter']]
     part = platter['gears'][plan['add_to_part']]
     radius = 0.5 * (plan['radius0'] + plan['radius1'])
+    radius_wave = 0.5 * abs(plan['radius0'] - plan['radius1'])
     center = np.array(plan['center'], dtype=np.float64)
     xy_offset = 0.5 * abs(plan['radius0'] - plan['radius1'])
     ring_in = radius - 0.5 * plan['thickness_xy']
     ring_out = radius + 0.5 * plan['thickness_xy']
-    ring_verts = make_cylinder_verts(ring_in, ring_out)
+    ring_func_period = plan['ring_func_period']
+    ring_func = plan['ring_func']
     zdiff = plan['z1'] - plan['z0']
-    for i,rv in enumerate(ring_verts):
-        t = i / float(len(ring_verts))
-        theta = 2.0 * np.pi * t
-        sval = np.sin(theta)
-        rv[0] -= xy_offset
-        rv[2] += 0.5 + (0.5 * sval) * zdiff + plan['z0']
+    if ring_func is not None:
+        # sine-wave connector
+        ring_verts = make_cylinder_verts(ring_in, ring_out, num_segments=plan['num_segments'])
+        for i,rv in enumerate(ring_verts):
+            t = (i>>1) / float(len(ring_verts)>>1)
+            theta = 2.0 * np.pi * t
+            tt = math.modf(t * ring_func_period)[0]
+            if ring_func == 'sin':
+                wave = np.sin(theta * ring_func_period)
+            elif ring_func == 'sq':
+                wave = (tt * tt * tt * tt) * 2.0 - 1.0
+            elif ring_func == 'spokes':
+                if tt > 0.25 and tt < 0.75:
+                    wave = 1.0
+                else:
+                    wave = -1.0
+            elif ring_func == 'dual_spokes':
+                if tt > 0.4 and tt < 0.6:
+                    wave = 1.0
+                else:
+                    wave = -1.0
+            sval = np.sin(theta)
+            cval = np.cos(theta)
+            rv[0] += radius_wave * sval * wave
+            rv[1] += radius_wave * cval * wave
+            rv[2] += (0.5 + (0.5 * -wave)) * zdiff + plan['z0']
+    else:
+        # offset-circle connector
+        ring_verts = make_cylinder_verts(ring_in, ring_out)
+        for i,rv in enumerate(ring_verts):
+            t = (i>>1) / float(len(ring_verts)>>1)
+            theta = 2.0 * np.pi * t
+            sval = np.sin(theta)
+            rv[0] -= xy_offset
+            rv[2] += (0.5 + (0.5 * sval)) * zdiff + plan['z0']
+
+    fix_inner_ring_verts(ring_verts, plan['thickness_xy'])
+
     for ring_angle in plan['ring_angles']:
         sval = np.sin(np.radians(ring_angle))
         cval = np.cos(np.radians(ring_angle))
@@ -956,7 +1022,25 @@ def make_versatile_connector(plan):
                             rv[2]]) + center
             ring_verts2.append(rv2)
         part['verts'].append(ring_verts2)
-        part['verts_z'].append([0.0, plan['thickness_z']])
+        part['verts_z'].append([-0.5 * plan['thickness_z'], 0.5 * plan['thickness_z']])
+
+def make_simple_cylinder(plan):
+    """
+    Offset rings to connect any two circles of different sizes and heights
+    """
+    platter = all_platters[plan['add_to_platter']]
+    part = platter['gears'][plan['add_to_part']]
+    radius = plan['radius']
+    span_angles = plan['span_angles']
+    center = np.array(plan['center'], dtype=np.float64)
+    thickness_z = plan['thickness_z']
+    ring_in = radius - 0.5 * plan['thickness_xy']
+    ring_out = radius + 0.5 * plan['thickness_xy']
+    ring_verts = make_cylinder_verts(ring_in, ring_out)
+    for rv in ring_verts:
+        rv += center
+    part['verts'].append(ring_verts)
+    part['verts_z'].append([-0.5 * thickness_z, 0.5 * thickness_z])
 
 def do_platter_adjustments(platter_name):
     platter = all_platters[platter_name]
@@ -977,28 +1061,34 @@ def do_platter_adjustments(platter_name):
         ring_radius = None
         ring_base_z = platter['base_z']
         make_versatile_connector({
+                                'num_segments':500,
                                 'add_to_platter':'Drive',
                                 'add_to_part':'feet',
                                 'center':[0,0,0],
                                 'radius0':all_platters['Drive']['gears']['Ps']['axle_radius'] - 1.5 * thinnest_material_wall,
                                 'radius1':all_platters['Mars']['gears']['Da']['axle_radius'] - 1.5 * thinnest_material_wall,
-                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 0.5 * thinnest_material_wall,
-                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.5 * thinnest_material_wall,
+                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 1.0 * thinnest_material_wall,
+                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.0 * thinnest_material_wall,
                                 'thickness_xy':thinnest_material_wall,
                                 'thickness_z':1.0 * thinnest_material_wall,
                                 'ring_angles':[0, 120, 240],
+                                'ring_func_period':None,
+                                'ring_func':None,
                                 })
         make_versatile_connector({
+                                'num_segments':500,
                                 'add_to_platter':'Drive',
                                 'add_to_part':'Ps',
                                 'center':[0,0,0],
                                 'radius0':all_platters['Drive']['gears']['Ps']['specs']['radius_inner'] - 1.5 * thinnest_material_wall,
                                 'radius1':all_platters['Mars']['gears']['Da']['specs']['radius_inner'] - 1.5 * thinnest_material_wall,
-                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 0.5 * thinnest_material_wall,
-                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.5 * thinnest_material_wall,
+                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 1.0 * thinnest_material_wall,
+                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.0 * thinnest_material_wall,
                                 'thickness_xy':thinnest_material_wall,
                                 'thickness_z':1.0 * thinnest_material_wall,
                                 'ring_angles':[0, 120, 240],
+                                'ring_func_period':None,
+                                'ring_func':None,
                                 })
         make_base_ring(platter_name, ring_radius, ring_base_z,
                        center_rings=center_rings, connect_rings=connect_rings,
@@ -1124,16 +1214,76 @@ def do_platter_adjustments(platter_name):
                        riser_height=riser_height, riser_rings=riser_rings)
         # Connect Mars rotor to Db
         make_versatile_connector({
+                                'num_segments':500,
                                 'add_to_platter':'Mars',
                                 'add_to_part':'Db',
                                 'center':[0,0,0],
                                 'radius0':all_platters['Mars']['gears']['Db']['axle_radius'] + 1.5 * thinnest_material_wall,
                                 'radius1':all_platters['Mars']['gears']['Grotor']['hub_radius'] - 1.0 * thinnest_material_wall + slide_buffer_dist,
-                                'z0':all_platters['Mars']['gears']['Db']['pos'][2] + 0.5 * spur_teeth_thickness + 1.5 * thinnest_material_wall + 0.5 * slide_buffer_dist,
-                                'z1':all_platters['Mars']['gears']['Db']['pos'][2] + 0.5 * spur_teeth_thickness + 1.5 * thinnest_material_wall + 0.5 * slide_buffer_dist,
+                                'z0': 1.0 * thinnest_material_wall + 0.0 * slide_buffer_dist,
+                                'z1': 1.0 * thinnest_material_wall + 0.0 * slide_buffer_dist,
                                 'thickness_xy':thinnest_material_wall,
                                 'thickness_z':1.0 * thinnest_material_wall,
                                 'ring_angles':list(range(0, 360, 360//5)),
+                                'ring_func_period':None,
+                                'ring_func':None,
+                                })
+        # Connect Mars geneva to Ps
+        gearG = all_platters['Mars']['gears']['G']
+        gearPs = all_platters['Mars']['gears']['Ps']
+        rotor = all_platters['Mars']['gears']['Grotor']
+        # outer G rim
+        g_rim_pos = [0.0, 0.0, 2.0*thinnest_material_wall]
+        ps_rim_pos = gearPs['pos'][2] - gearG['pos'][2] - [0.0, 0.0, 2.0*thinnest_material_wall]
+        make_simple_cylinder({
+                    'add_to_platter':'Mars',
+                    'add_to_part':'G',
+                    'center':g_rim_pos,
+                    'radius':gearG['specs']['radius_ref'] + rotor['outset'],
+                    'thickness_xy':thinnest_material_wall,
+                    'thickness_z':thinnest_material_wall,
+                    'span_angles':None,
+                    })
+        # inner G-Ps cuff
+        make_simple_cylinder({
+                    'add_to_platter':'Mars',
+                    'add_to_part':'G',
+                    'center':0.5 * (gearPs['pos'] - gearG['pos']),
+                    'radius':gearPs['specs']['radius_inner'] - thinnest_material_wall,
+                    'thickness_xy':thinnest_material_wall,
+                    'thickness_z':abs(gearG['pos'][2] - gearPs['pos'][2]) + 0*thinnest_material_wall,
+                    'span_angles':None,
+                    })
+        make_versatile_connector({
+                                'num_segments':36*14,
+                                'add_to_platter':'Mars',
+                                'add_to_part':'G',
+                                'center':[0,0,0],
+                                'radius0':gearG['specs']['radius_ref'] + rotor['outset'],
+                                'radius1':gearPs['specs']['radius_inner'] - thinnest_material_wall,
+                                'z0':g_rim_pos[2],
+                                'z1':ps_rim_pos[2],
+                                'thickness_xy':thinnest_material_wall,
+                                'thickness_z':thinnest_material_wall,
+                                'ring_angles':[0],
+                                'ring_func_period':14,
+                                'ring_func':'dual_spokes',
+                                })
+        # spokes reach down to the G rim
+        make_versatile_connector({
+                                'num_segments':36*14,
+                                'add_to_platter':'Mars',
+                                'add_to_part':'G',
+                                'center':[0,0,0],
+                                'radius1':gearG['specs']['radius_ref'] + rotor['outset'],
+                                'radius0':gearG['specs']['radius_outer'] + 0.5 * thinnest_material_wall,
+                                'z1':g_rim_pos[2],
+                                'z0':0.0,
+                                'thickness_xy':thinnest_material_wall,
+                                'thickness_z':thinnest_material_wall,
+                                'ring_angles':[0],
+                                'ring_func_period':14,
+                                'ring_func':'dual_spokes',
                                 })
 
     elif platter_name in ['Venus', 'Mercury']:
@@ -1459,6 +1609,7 @@ def build_one_platter(platter_name):
     # do_platter_adjustments(platter_name)
 
 def print_checks():
+    return
     print('Pitch stats:')
     for platter_name,platter in all_platters.items():
         rotor_pin_width = None
@@ -1610,7 +1761,7 @@ class ColladaModel:
 
 
 def build_all():
-    platters_to_make = ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']
+    platters_to_make = ['Drive', 'Mars']#, 'Luna', 'Venus', 'Mercury']
     for platter_name in platters_to_make:
         make_platter_specs(platter_name)
     for platter_name in platters_to_make:
