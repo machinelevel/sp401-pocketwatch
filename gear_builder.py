@@ -163,6 +163,11 @@ all_platters = {
     },
 }
 
+class Part:
+    def __init__(self, strip_verts=None, z1z2=None):
+        self.strip_verts = strip_verts
+        self.z1z2 = z1z2
+
 def get_outer_tooth_shape(num_teeth, pitch_ref):
     original_shape = outer_tooth_shapes_p10[str(num_teeth)]
     shape = [0.1 * pitch_ref * np.array([-vert[0], vert[1], 0.0]) for vert in original_shape]
@@ -333,33 +338,30 @@ def build_one_spur(gear):
             inner_vert_dir = outer_mult * np.sign(c[2]) * normalized(d1 + d2)
             verts[inner_vert_index] = this_outer_vert + tooth_lateral_thickness * inner_vert_dir
 #            verts[inner_vert_index] = this_outer_vert * 0.95
-    gear['verts'] = [verts]
-    gear['verts_z'] = [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
+    gear['parts'] += [Part(strip_verts=verts, z1z2=[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness])]
     outer_rail_width = gear.get('outer_rail', None)
     if outer_rail_width is not None:
         rail_in = gear['specs']['radius_outer'] + 0.5 * thinnest_material_wall
         rail_out1 = rail_in + outer_rail_width * thinnest_material_wall
         rail_out2 = rail_in + 2 * thinnest_material_wall
-        gear['verts'] += [make_cylinder_verts(rail_in, rail_out1)]
-        gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
-        # gear['verts'] += [make_cylinder_verts(rail_in, rail_out2)]
-        # gear['verts_z'] += [[-0.5 * spur_teeth_thickness, 0.5 * spur_teeth_thickness]]
+        z1z2 = [-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]
+        gear['parts'] += [Part(strip_verts=make_cylinder_verts(rail_in, rail_out1), z1z2=z1z2)]
 
     if gear['inout'] == 'out':
         if gear.get('inner_rail', 1):
             rail_out = gear['specs']['radius_inner'] - 0.5 * thinnest_material_wall
             rail_in = rail_out - 2 * thinnest_material_wall
             gear['axle_radius'] = rail_in
-            gear['verts'] += [make_cylinder_verts(rail_in, rail_out)]
-            gear['verts_z'] += [[-0.5 * spur_teeth_thickness - slide_buffer_dist, 0.5 * spur_teeth_thickness + slide_buffer_dist]]
+            z1z2 = [-0.5 * spur_teeth_thickness - slide_buffer_dist,
+                     0.5 * spur_teeth_thickness + slide_buffer_dist]
+            gear['parts'] += [Part(strip_verts=make_cylinder_verts(rail_in, rail_out), z1z2=z1z2)]
 
     if gear.get('ring_under', None) is not None:
         rail_out = gear['specs']['radius_outer'] + 0.5 * thinnest_material_wall
         rail_in = rail_out - thinnest_material_wall
         rail_top = -0.5 * spur_teeth_thickness + 0.5 * thinnest_material_wall
         rail_bottom = rail_top - thinnest_material_wall
-        gear['verts'] += [make_cylinder_verts(rail_in, rail_out)]
-        gear['verts_z'] += [[rail_bottom, rail_top]]
+        gear['parts'] += [Part(strip_verts=make_cylinder_verts(rail_in, rail_out), z1z2=[rail_bottom, rail_top])]
 
     return verts
 
@@ -473,8 +475,8 @@ def build_one_geneva(gear, rotor):
             c = np.cross(d1, d2)
             inner_vert_dir = np.sign(c[2]) * normalized(d1 + d2)
             verts[inner_vert_index] = this_outer_vert + in_sign * tooth_lateral_thickness * inner_vert_dir
-    gear['verts'] = [verts]
-    gear['verts_z'] = [[in_sign * -0.5 * thinnest_material_wall, in_sign * 0.5 * thinnest_material_wall]]
+    z1z2 = [in_sign * -0.5 * thinnest_material_wall, in_sign * 0.5 * thinnest_material_wall]
+    gear['parts'] += [Part(strip_verts=verts, z1z2=z1z2)]
     return verts
 
 def configure_rotor(rotor, geneva):
@@ -493,8 +495,6 @@ def build_one_rotor(rotor, geneva):
     pin_verts = np.ndarray((num_verts, 3), dtype=np.float64)
     disc_verts = np.ndarray((num_verts, 3), dtype=np.float64)
     pin_shaft = rotor.get('pin_shaft', None)
-    rotor['verts'] = []
-    rotor['verts_z'] = []
     do_base = not rotor.get('no_rotor_base', False)
     for seg in range(num_segments):
         t = float(seg) / float(num_segments)
@@ -535,15 +535,15 @@ def build_one_rotor(rotor, geneva):
             disc_verts[inner_vert_index][1] = inner_disc_radius * cval
             disc_verts[inner_vert_index][2] = 0.0
 
-    rotor['verts'].append(verts)
-    rotor['verts_z'].append([-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness])
+    z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
+    rotor['parts'] += [Part(strip_verts=verts, z1z2=z1z2)]
 
-    rotor['verts'].append(pin_verts)
-    rotor['verts_z'].append([-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness])
+    z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
+    rotor['parts'] += [Part(strip_verts=pin_verts, z1z2=z1z2)]
 
     if do_base:
-        rotor['verts'].append(disc_verts)
-        rotor['verts_z'].append([-1.5 * thinnest_material_wall, -0.5 * thinnest_material_wall])
+        z1z2 = [-1.5 * thinnest_material_wall, -0.5 * thinnest_material_wall]
+        rotor['parts'] += [Part(strip_verts=disc_verts, z1z2=z1z2)]
 
 
 def normalized(v):
@@ -686,15 +686,14 @@ def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet
         else:
             fp = fp_planet_gears
         fp.write('solid OpenSCAD_Model\n')
-        verts = gear.get('verts', None)
-        if verts is not None:
-            for strip_index,strip_verts in enumerate(verts):
+        parts = gear.get('parts', None)
+        if parts is not None:
+            for part in parts:
                 pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos
                 rot = gear.get('rot', 0.0)
-                verts_z = gear['verts_z'][strip_index]
-                write_stl_tristrip_quads(fp, collada_model, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
+                write_stl_tristrip_quads(fp, collada_model, part.strip_verts, verts_z=part.z1z2, pos=pos, rot=rot, closed=True)
                 if collada_model is not None:
-                    collada_model.add_extruded_tristrip_quad_mesh(material, strip_verts, verts_z=verts_z, pos=pos, rot=rot, closed=True)
+                    collada_model.add_extruded_tristrip_quad_mesh(material, part.strip_verts, verts_z=part.z1z2, pos=pos, rot=rot, closed=True)
         bearings = gear.get('ball_bearings', None)
         if bearings is not None:
             for bearing_pos in bearings:
@@ -713,6 +712,7 @@ def make_platter_specs(platter_name):
         if gear_name in ['Ps', 'Pr', 'Pp0', 'Pp1', 'Pp2', 'Pp3']:
             planetary_mult = platter.get('planetary_mult', 1)
             gear['teeth'] *= planetary_mult
+        gear['parts'] = []
         gear['specs'] = {}
         gear['rings'] = []
         if gear['type'] == 'geneva':
@@ -761,6 +761,7 @@ def make_platter_specs(platter_name):
             if platter.get('rings_under_planets', 0):
                 p['ring_under'] = 1
             platter['gears']['Pp{}'.format(i)] = p
+            p['parts'] = []
 
 
 def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=None):
@@ -808,8 +809,6 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_r
     strut_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
     strut_pos = np.array([gear['pos'][0], gear['pos'][1], 0.0])
     feet = platter['gears']['feet']
-    # feet['verts'].append(strut_verts + strut_pos)
-    # feet['verts_z'].append([strut_bottom, strut_top])
 
     ring_radius = platter['base_ring_radius']
     if platter_name == 'Luna':
@@ -827,8 +826,8 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_r
     axle1_top = gear['pos'][2] + 0.5 * tooth_rim_thickness
     axle1_bottom = axle1_top - tooth_rim_thickness - 0.5 * thinnest_material_wall
     shaft = platter['gears']['shaft']
-    feet['verts'].append(axle1_verts + axle1_pos)
-    feet['verts_z'].append([axle1_bottom, axle1_top])
+    z1z2 = [axle1_bottom, axle1_top]
+    feet['parts'] += [Part(strip_verts=axle1_verts + axle1_pos, z1z2=z1z2)]
 
     bearing_center = axle1_pos + (0.0, 0.0, 0.5 * (axle1_top + axle1_bottom) + platter['pos'][2])
     placement_radius = axle1_out - 0.5 * ball_bearing_radius
@@ -845,8 +844,8 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_r
         gear['axle_rest_z'] = axle2_top
         axle2_bottom = axle2_top - thinnest_material_wall
         axle2_verts = make_cylinder_verts(axle2_in, axle2_out)
-        feet['verts'].append(axle2_verts + axle1_pos)
-        feet['verts_z'].append([axle2_bottom, axle2_top])
+        z1z2 = [axle2_bottom, axle2_top]
+        feet['parts'] += [Part(strip_verts=axle2_verts + axle1_pos, z1z2=z1z2)]
 
         bearing_center = axle1_pos + (0.0, 0.0, axle2_top - 0.5 * ball_bearing_radius + platter['pos'][2])
         placement_radius = gear['specs']['radius_inner'] - 2.0 * ball_bearing_radius
@@ -859,19 +858,16 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_r
         mini_radius = axle2_in + 1 * strut_outer_radius
         ring_pts = find_circle_intersection_points(origin, ring_radius, gear['pos'], mini_radius)
         if len(ring_pts):
-            feet['verts'].append(strut_verts + ring_pts[0])
-            feet['verts_z'].append([strut_bottom, strut_top])
+            feet['parts'] += [Part(strip_verts=strut_verts + ring_pts[0], z1z2=[strut_bottom, strut_top])]
             if len(ring_pts) > 1:
-                feet['verts'].append(strut_verts + ring_pts[1])
-                feet['verts_z'].append([strut_bottom, strut_top])
+                feet['parts'] += [Part(strip_verts=strut_verts + ring_pts[1], z1z2=[strut_bottom, strut_top])]
 
 def make_gear_hub_riser(platter_name, gear, strut_bottom, strut_top):
     platter = all_platters[platter_name]
     strut_verts = make_cylinder_verts(strut_inner_radius, strut_outer_radius)
     strut_pos = np.array([gear['pos'][0], gear['pos'][1], 0.0])
     feet = platter['gears']['feet']
-    feet['verts'].append(strut_verts + strut_pos)
-    feet['verts_z'].append([strut_bottom, strut_top])
+    feet['parts'] += [Part(strip_verts=strut_verts + strut_pos, z1z2=[strut_bottom, strut_top])]
 
 def make_platter_supports(platter_name):
     platter = all_platters[platter_name]
@@ -892,10 +888,6 @@ def make_platter_supports(platter_name):
                     np.array([ 1, -1, 0.0]),
                     np.array([-1,  1, 0.0]),
                     np.array([ 1,  1, 0.0])]
-    feet['verts'] = []
-    feet['verts_z'] = []
-    shaft['verts'] = []
-    shaft['verts_z'] = []
 
     support_platter_name = platter['support_platter']
     support_platter = all_platters.get(support_platter_name, None)
@@ -918,17 +910,6 @@ def make_platter_supports(platter_name):
         if platter_name in ['Drive'] and gear_name in ['Ps']:
             strut_top = gear['pos'][2] + 8
             make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top)
-
-    if 0:
-        for gear_name,gear in platter['gears'].items():
-            if gear['type'] == 'feet':
-                for foot_index in range(4):
-                    feet['verts'].append(foot_verts + fd * foot_offsets[foot_index])
-                    feet['verts_z'].append([shaft_gear['pos'][2] - 1.0, shaft_gear['pos'][2] + 1.0])
-                    feet['verts'].append(foot_verts + f2d * foot_offsets[foot_index])
-                    feet['verts_z'].append([gearPs['pos'][2] - 1.0, gearPs['pos'][2] + 1.0])
-                    shaft['verts'].append(foot_verts + sd * foot_offsets[foot_index])
-                    shaft['verts_z'].append([shaft_gear['pos'][2] - 1.0, shaft_gear['pos'][2] + 1.0])
 
 def set_platter_base(platter_name):
     platter = all_platters[platter_name]
@@ -1021,8 +1002,7 @@ def make_versatile_connector(plan):
                             rv[1] * cval - rv[0] * sval,
                             rv[2]]) + center
             ring_verts2.append(rv2)
-        part['verts'].append(ring_verts2)
-        part['verts_z'].append([-0.5 * plan['thickness_z'], 0.5 * plan['thickness_z']])
+        part['parts'] += [Part(strip_verts=ring_verts2, z1z2=[-0.5 * plan['thickness_z'], 0.5 * plan['thickness_z']])]
 
 def make_simple_cylinder(plan):
     """
@@ -1039,8 +1019,7 @@ def make_simple_cylinder(plan):
     ring_verts = make_cylinder_verts(ring_in, ring_out)
     for rv in ring_verts:
         rv += center
-    part['verts'].append(ring_verts)
-    part['verts_z'].append([-0.5 * thickness_z, 0.5 * thickness_z])
+    part['parts'] += [Part(strip_verts=ring_verts, z1z2=[-0.5 * thickness_z, 0.5 * thickness_z])]
 
 def do_platter_adjustments(platter_name):
     platter = all_platters[platter_name]
@@ -1328,8 +1307,7 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
             ring_out = ring[0] + 0.5 * thinnest_material_wall
             ring_in = ring_out - thinnest_material_wall
             ring_verts = make_cylinder_verts(ring_in, ring_out)
-            feet['verts'].append(ring_verts)
-            feet['verts_z'].append([ring_bottom, this_ring_top])
+            feet['parts'] += [Part(strip_verts=ring_verts, z1z2=[ring_bottom, this_ring_top])]
 
     if connect_rings is not None:
         for ring in connect_rings:
@@ -1345,8 +1323,7 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
                 sval = np.sin(np.radians(theta))
                 cval = np.cos(np.radians(theta))
                 ring_offset = np.array([ring_offset_dist * sval, ring_offset_dist * cval , 0.0])
-                feet['verts'].append(ring_verts + ring_offset)
-                feet['verts_z'].append([ring_bottom, ring_top])
+                feet['parts'] += [Part(strip_verts=ring_verts + ring_offset, z1z2=[ring_bottom, ring_top])]
 
     if riser_rings is not None:
         for ring in riser_rings:
@@ -1375,8 +1352,7 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
 
                 riser_verts.append(v + [0.0, 0.0, riser_height * rise])
 
-            feet['verts'].append(riser_verts)
-            feet['verts_z'].append([ring_bottom, ring_top])
+            feet['parts'] += [Part(strip_verts=riser_verts, z1z2=[ring_bottom, ring_top])]
 
     ###################################
     ## This section is old and should be deleted
@@ -1385,41 +1361,14 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
         ring_out1 = ring_radius + 0.5 * span_dist
         ring_in1 = ring_out1 - thinnest_material_wall
         ring_verts = make_cylinder_verts(ring_in1, ring_out1)
-        feet['verts'].append(ring_verts)
-        feet['verts_z'].append([ring_bottom, ring_top])
-        # Outer riser
-        # if riser_plan is not None:
-        #     ring_verts = make_cylinder_verts(ring_in1, ring_out1, num_segments=500)
-        #     riser_verts = []
-        #     for i,v in enumerate(ring_verts):
-        #         th = 360.0 * float(i) / float(len(ring_verts))
-        #         for plan_index,rp2 in enumerate(riser_plan):
-        #             if rp2[0] > th:
-        #                 break
-        #         rp1 = riser_plan[plan_index - 1]
-        #         t = (th - rp1[0]) / (rp2[0] - rp1[0])
-        #         rise = rp1[1] + t * (rp2[1] - rp1[1])
-        #         if 0:
-        #             # use sin^2 to mellow it out
-        #             rise = np.sin(rise * 0.5 * np.pi)
-        #             rise *= rise
-        #         if 1:
-        #             # use sin to mellow it out
-        #             rise = np.sin((rise - 0.5) * 1.0 * np.pi)
-        #             rise = 0.5 * (rise + 1.0)
+        feet['parts'] += [Part(strip_verts=ring_verts, z1z2=[ring_bottom, ring_top])]
 
-        #         riser_verts.append(v + [0.0, 0.0, riser_height * rise])
-
-        #     feet['verts'].append(riser_verts)
-        #     feet['verts_z'].append([ring_bottom, ring_top])
-        #return
 
         #inner ring
         ring_in2 = ring_radius - 0.5 * span_dist
         ring_out2 = ring_in2 + thinnest_material_wall
         ring_verts = make_cylinder_verts(ring_in2, ring_out2)
-        feet['verts'].append(ring_verts)
-        feet['verts_z'].append([ring_bottom, ring_top])
+        feet['parts'] += [Part(strip_verts=ring_verts, z1z2=[ring_bottom, ring_top])]
         #cross rings
         ring_in3 = ring_radius - 0.5 * thinnest_material_wall
         ring_out3 = ring_in3 + thinnest_material_wall
@@ -1430,8 +1379,7 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
             sval = np.sin(np.radians(theta))
             cval = np.cos(np.radians(theta))
             ring_offset = np.array([ring_offset_dist * sval, ring_offset_dist * cval , 0.0])
-            feet['verts'].append(ring_verts + ring_offset)
-            feet['verts_z'].append([ring_bottom, ring_top])
+            feet['parts'] += [Part(strip_verts=ring_verts + ring_offset, z1z2=[ring_bottom, ring_top])]
 
 
 def tooth_theta(gear):
@@ -1763,7 +1711,7 @@ class ColladaModel:
 
 
 def build_all():
-    platters_to_make = ['Drive', 'Mars']#, 'Luna', 'Venus', 'Mercury']
+    platters_to_make = ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']
     for platter_name in platters_to_make:
         make_platter_specs(platter_name)
     for platter_name in platters_to_make:
