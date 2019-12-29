@@ -168,6 +168,14 @@ class Part:
         self.strip_verts = strip_verts
         self.z1z2 = z1z2
 
+    def build(self, gear, platter, fp, collada_model):
+        platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
+        pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos
+        rot = gear.get('rot', 0.0)
+        write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, closed=True)
+        if collada_model is not None:
+            collada_model.add_extruded_tristrip_quad_mesh(material, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, closed=True)
+
 def get_outer_tooth_shape(num_teeth, pitch_ref):
     original_shape = outer_tooth_shapes_p10[str(num_teeth)]
     shape = [0.1 * pitch_ref * np.array([-vert[0], vert[1], 0.0]) for vert in original_shape]
@@ -667,8 +675,6 @@ def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=No
 
 def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet_gears_file_name, frame_file_name):
     platter = all_platters[platter_name]
-    platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
-
     if collada_model is not None:
         material = collada_model.new_material((0,1,0),(0,1,0))
 
@@ -689,11 +695,7 @@ def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet
         parts = gear.get('parts', None)
         if parts is not None:
             for part in parts:
-                pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos
-                rot = gear.get('rot', 0.0)
-                write_stl_tristrip_quads(fp, collada_model, part.strip_verts, verts_z=part.z1z2, pos=pos, rot=rot, closed=True)
-                if collada_model is not None:
-                    collada_model.add_extruded_tristrip_quad_mesh(material, part.strip_verts, verts_z=part.z1z2, pos=pos, rot=rot, closed=True)
+                part.build(gear, platter, fp, collada_model)
         bearings = gear.get('ball_bearings', None)
         if bearings is not None:
             for bearing_pos in bearings:
