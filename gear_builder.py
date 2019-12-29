@@ -1234,7 +1234,7 @@ def do_platter_adjustments(platter_name):
         rotor = all_platters['Mars']['gears']['Grotor']
         # outer G rim
         g_rim_pos = [0.0, 0.0, 2.0*thinnest_material_wall]
-        ps_rim_pos = gearPs['pos'][2] - gearG['pos'][2] - [0.0, 0.0, 2.0*thinnest_material_wall]
+        ps_rim_pos = gearPs['pos'] - gearG['pos'] - [0.0, 0.0, 2.0*thinnest_material_wall]
         make_simple_cylinder({
                     'add_to_platter':'Mars',
                     'add_to_part':'G',
@@ -1248,10 +1248,10 @@ def do_platter_adjustments(platter_name):
         make_simple_cylinder({
                     'add_to_platter':'Mars',
                     'add_to_part':'G',
-                    'center':0.5 * (gearPs['pos'] - gearG['pos']),
+                    'center':0.5 * (ps_rim_pos + gearPs['pos']),
                     'radius':gearPs['specs']['radius_inner'] - thinnest_material_wall,
                     'thickness_xy':thinnest_material_wall,
-                    'thickness_z':abs(gearG['pos'][2] - gearPs['pos'][2]) + 0*thinnest_material_wall,
+                    'thickness_z':abs(ps_rim_pos[2] - gearPs['pos'][2]) + 1*thinnest_material_wall,
                     'span_angles':None,
                     })
         make_versatile_connector({
@@ -1543,6 +1543,8 @@ def build_one_platter(platter_name):
     if platter_name == 'Drive':
         planetary_z = geneva_z + 0.5 * thinnest_material_wall + 0.5 * spur_teeth_thickness
         driver_z = geneva_z - slide_buffer_dist - 0.5 * thinnest_material_wall - 0.5 * spur_teeth_thickness
+    elif platter_name == 'Mars':
+        planetary_z = geneva_z + slide_buffer_dist + 4.0 * thinnest_material_wall + 0.5 * spur_teeth_thickness
 
     gearG['pos'] = np.array([0.0, 0.0, 0.0])
     gearG['rot'] = 0.5 * tooth_theta(gearG) + np.radians(rotor_azimuth)
