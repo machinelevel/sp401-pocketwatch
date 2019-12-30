@@ -81,9 +81,8 @@ all_platters = {
         'scale_base_ring_radius':1.0,
         'gears': {
             'G'      :{'type':'geneva', 'inout':'in', 'teeth':28, 'inner_rail':1.0},
-#            'G2'      :{'type':'geneva', 'inout':'out', 'teeth':28},
-            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':1.0},
-            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':3.5},
+            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':1.0, 'ring_over':1.0},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':3.5, 'ring_over':1.0},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':None},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
@@ -366,10 +365,25 @@ def build_one_spur(gear):
             gear['parts'] += [Part(strip_verts=make_cylinder_verts(rail_in, rail_out), z1z2=z1z2)]
 
     if gear.get('ring_under', None) is not None:
-        rail_out = gear['specs']['radius_outer'] + 0.5 * thinnest_material_wall
-        rail_in = rail_out - thinnest_material_wall
-        rail_top = -0.5 * spur_teeth_thickness + 0.5 * thinnest_material_wall
+        if gear['inout'] == 'out':
+            rail_out = gear['specs']['radius_outer'] - 0.5 * thinnest_material_wall
+            rail_in = rail_out - thinnest_material_wall
+        else:
+            rail_in = gear['specs']['radius_inner'] + 0.5 * thinnest_material_wall
+            rail_out = rail_in + thinnest_material_wall
+        rail_top = -0.45 * thinnest_material_wall
         rail_bottom = rail_top - thinnest_material_wall
+        gear['parts'] += [Part(strip_verts=make_cylinder_verts(rail_in, rail_out), z1z2=[rail_bottom, rail_top])]
+
+    if gear.get('ring_over', None) is not None:
+        if gear['inout'] == 'out':
+            rail_out = gear['specs']['radius_outer'] - 0.5 * thinnest_material_wall
+            rail_in = rail_out - thinnest_material_wall
+        else:
+            rail_in = gear['specs']['radius_inner'] + 0.5 * thinnest_material_wall
+            rail_out = rail_in + thinnest_material_wall
+        rail_bottom = 0.45 * thinnest_material_wall
+        rail_top = rail_bottom + thinnest_material_wall
         gear['parts'] += [Part(strip_verts=make_cylinder_verts(rail_in, rail_out), z1z2=[rail_bottom, rail_top])]
 
     return verts
@@ -1015,10 +1029,14 @@ def make_simple_cylinder(plan):
     thickness_z = plan['thickness_z']
     ring_in = radius - 0.5 * plan['thickness_xy']
     ring_out = radius + 0.5 * plan['thickness_xy']
-    ring_verts = make_cylinder_verts(ring_in, ring_out)
-    for rv in ring_verts:
-        rv += center
-    part['parts'] += [Part(strip_verts=ring_verts, z1z2=[-0.5 * thickness_z, 0.5 * thickness_z])]
+    if plan['span_angles'] is None:
+        ring_verts = make_cylinder_verts(ring_in, ring_out, center=center)
+        part['parts'] += [Part(strip_verts=ring_verts, z1z2=[-0.5 * thickness_z, 0.5 * thickness_z])]
+    else:
+        for sa in plan['span_angles']:
+            nsegs = int(500.0 * (sa[1] - sa[0]) / 360.0)
+            ring_verts = make_cylinder_verts(ring_in, ring_out, center=center, angle_range_deg=sa, num_segments=nsegs)
+            part['parts'] += [Part(strip_verts=ring_verts, z1z2=[-0.5 * thickness_z, 0.5 * thickness_z], need_endcaps=True)]
 
 def do_platter_adjustments(platter_name):
     platter = all_platters[platter_name]
@@ -1082,6 +1100,7 @@ def do_platter_adjustments(platter_name):
         riser_height = 1.0
         riser_height_Pp = platter['gears']['Pp0']['axle_rest_z'] - 1.0 * thinnest_material_wall - ring_base_z
         riser_height_Db = platter['gears']['Db']['axle_rest_z'] - 1.0 * thinnest_material_wall - ring_base_z
+        # Risers on Mars Pp
         riser_plan = [
                      [0.0-5.0,  riser_height_Pp], 
                      [0.0+5.0,  riser_height_Pp],
@@ -1134,46 +1153,88 @@ def do_platter_adjustments(platter_name):
                      [360.0-0.0, 0.0], 
                      [360.0+10.0,  riser_height_Pp], 
                      ]
+        # Risers on Mars Db
+        outer_rise_theta = 31.0-12.0 # azimuth of outer supports
+        inner_rise_theta = 37.0-9.0 # azimuth of inner supports
         riser_planC = [
                      [0.0,  0.0], 
-                     [270.0-31.0+2.0-10.0,  0.0], 
-                     [270.0-31.0+2.0,  riser_height_Db], 
-                     [270.0-31.0+2.0+10.0,  0.0], 
-                     [270.0+31.0+2.0-10.0,  0.0], 
-                     [270.0+31.0+2.0,  riser_height_Db], 
-                     [270.0+31.0+2.0+10.0,  0.0], 
+                     [270.0-outer_rise_theta+2.0-10.0,  0.0], 
+                     [270.0-outer_rise_theta+2.0,  riser_height_Db], 
+                     [270.0-outer_rise_theta+2.0+10.0,  0.0], 
+                     [270.0+outer_rise_theta+2.0-10.0,  0.0], 
+                     [270.0+outer_rise_theta+2.0,  riser_height_Db], 
+                     [270.0+outer_rise_theta+2.0+10.0,  0.0], 
                      [360.0,  0.0], 
                      ]
         riser_planD = [
                      [0.0,  0.0], 
-                     [270.0-31.0-2.0-10.0,  0.0], 
-                     [270.0-31.0-2.0,  riser_height_Db], 
-                     [270.0-31.0-2.0+10.0,  0.0], 
-                     [270.0+31.0-2.0-10.0,  0.0], 
-                     [270.0+31.0-2.0,  riser_height_Db], 
-                     [270.0+31.0-2.0+10.0,  0.0], 
+                     [270.0-outer_rise_theta-2.0-10.0,  0.0], 
+                     [270.0-outer_rise_theta-2.0,  riser_height_Db], 
+                     [270.0-outer_rise_theta-2.0+10.0,  0.0], 
+                     [270.0+outer_rise_theta-2.0-10.0,  0.0], 
+                     [270.0+outer_rise_theta-2.0,  riser_height_Db], 
+                     [270.0+outer_rise_theta-2.0+10.0,  0.0], 
                      [360.0,  0.0], 
                      ]
         riser_planE = [
                      [0.0,  0.0], 
-                     [270.0-37.0+2.0-10.0,  0.0], 
-                     [270.0-37.0+2.0,  riser_height_Db], 
-                     [270.0-37.0+2.0+10.0,  0.0], 
-                     [270.0+37.0+2.0-10.0,  0.0], 
-                     [270.0+37.0+2.0,  riser_height_Db], 
-                     [270.0+37.0+2.0+10.0,  0.0], 
+                     [270.0-inner_rise_theta+2.0-10.0,  0.0], 
+                     [270.0-inner_rise_theta+2.0,  riser_height_Db], 
+                     [270.0-inner_rise_theta+2.0+10.0,  0.0], 
+                     [270.0+inner_rise_theta+2.0-10.0,  0.0], 
+                     [270.0+inner_rise_theta+2.0,  riser_height_Db], 
+                     [270.0+inner_rise_theta+2.0+10.0,  0.0], 
                      [360.0,  0.0], 
                      ]
         riser_planF = [
                      [0.0,  0.0], 
-                     [270.0-37.0-2.0-10.0,  0.0], 
-                     [270.0-37.0-2.0,  riser_height_Db], 
-                     [270.0-37.0-2.0+10.0,  0.0], 
-                     [270.0+37.0-2.0-10.0,  0.0], 
-                     [270.0+37.0-2.0,  riser_height_Db], 
-                     [270.0+37.0-2.0+10.0,  0.0], 
+                     [270.0-inner_rise_theta-2.0-10.0,  0.0], 
+                     [270.0-inner_rise_theta-2.0,  riser_height_Db], 
+                     [270.0-inner_rise_theta-2.0+10.0,  0.0], 
+                     [270.0+inner_rise_theta-2.0-10.0,  0.0], 
+                     [270.0+inner_rise_theta-2.0,  riser_height_Db], 
+                     [270.0+inner_rise_theta-2.0+10.0,  0.0], 
                      [360.0,  0.0], 
                      ]
+        # Risers for G support
+        g_support_theta0 = 55.0
+        g_support_theta1 = 39.0
+        riser_height_G = platter['gears']['G']['pos'][2] - 1.5 * thinnest_material_wall - ring_base_z
+        pair_off = -2.0
+        riser_planG0 = [
+                     [0.0,  0.0], 
+                     [ 90.0-g_support_theta1+pair_off-10.0,  0.0], 
+                     [ 90.0-g_support_theta1+pair_off,  riser_height_G], 
+                     [ 90.0-g_support_theta1+pair_off+10.0,  0.0], 
+                     [ 90.0+g_support_theta1+pair_off-10.0,  0.0], 
+                     [ 90.0+g_support_theta1+pair_off,  riser_height_G], 
+                     [ 90.0+g_support_theta1+pair_off+10.0,  0.0], 
+                     [270.0-g_support_theta0+pair_off-10.0,  0.0], 
+                     [270.0-g_support_theta0+pair_off,  riser_height_G], 
+                     [270.0-g_support_theta0+pair_off+10.0,  0.0], 
+                     [270.0+g_support_theta0+pair_off-10.0,  0.0], 
+                     [270.0+g_support_theta0+pair_off,  riser_height_G], 
+                     [270.0+g_support_theta0+pair_off+10.0,  0.0], 
+                     [360.0,  0.0], 
+                     ]
+        pair_off = 2.0
+        riser_planG1 = [
+                     [0.0,  0.0], 
+                     [ 90.0-g_support_theta1+pair_off-10.0,  0.0], 
+                     [ 90.0-g_support_theta1+pair_off,  riser_height_G], 
+                     [ 90.0-g_support_theta1+pair_off+10.0,  0.0], 
+                     [ 90.0+g_support_theta1+pair_off-10.0,  0.0], 
+                     [ 90.0+g_support_theta1+pair_off,  riser_height_G], 
+                     [ 90.0+g_support_theta1+pair_off+10.0,  0.0], 
+                     [270.0-g_support_theta0+pair_off-10.0,  0.0], 
+                     [270.0-g_support_theta0+pair_off,  riser_height_G], 
+                     [270.0-g_support_theta0+pair_off+10.0,  0.0], 
+                     [270.0+g_support_theta0+pair_off-10.0,  0.0], 
+                     [270.0+g_support_theta0+pair_off,  riser_height_G], 
+                     [270.0+g_support_theta0+pair_off+10.0,  0.0], 
+                     [360.0,  0.0], 
+                     ]
+
         center_rings = [[rad_out, thinnest_material_wall]]
 #        connect_rings = [[[rad_in, rad_out],[0, 90, 180, 270]]]
         connect_rings = None
@@ -1186,6 +1247,8 @@ def do_platter_adjustments(platter_name):
                        [rad_out, riser_planD],
                        [rad_out2, riser_planE],
                        [rad_out2, riser_planF],
+                       [rad_out2, riser_planG0],
+                       [rad_out2, riser_planG1],
                        ]
         make_base_ring(platter_name, ring_radius, ring_base_z,
                        center_rings=center_rings, connect_rings=connect_rings,
@@ -1231,6 +1294,43 @@ def do_platter_adjustments(platter_name):
                     'thickness_xy':thinnest_material_wall,
                     'thickness_z':abs(ps_rim_pos[2] - gearPs['pos'][2]) + 1*thinnest_material_wall,
                     'span_angles':None,
+                    })
+        # outer G rim
+        make_simple_cylinder({
+                    'add_to_platter':'Mars',
+                    'add_to_part':'G',
+                    'center':gearG['pos'],
+                    'radius':gearG['specs']['radius_outer'] + 1.5*thinnest_material_wall,
+                    'thickness_xy':thinnest_material_wall,
+                    'thickness_z':thinnest_material_wall,
+                    'span_angles':None,
+                    })
+        # outer G rim supports
+        make_simple_cylinder({
+                    'add_to_platter':'Mars',
+                    'add_to_part':'feet',
+                    'center':gearG['pos'],
+                    'radius':gearG['specs']['radius_outer'] + 2.5*thinnest_material_wall + slide_buffer_dist,
+                    'thickness_xy':thinnest_material_wall,
+                    'thickness_z':2.0*thinnest_material_wall,
+                    'span_angles':[[50.0-10.0, 50.0+10.0],
+                                   [-35.0-10.0, -35.0+10.0],
+                                   [215.0-10.0, 215.0+10.0],
+                                   [-230.0-10.0, -230.0+10.0],
+                                   ],
+                    })
+        make_simple_cylinder({
+                    'add_to_platter':'Mars',
+                    'add_to_part':'feet',
+                    'center':gearG['pos'] + [0.0, 0.0, -1.0 * thinnest_material_wall],
+                    'radius':gearG['specs']['radius_outer'] + 1.0*thinnest_material_wall + slide_buffer_dist,
+                    'thickness_xy':5.0 * thinnest_material_wall,
+                    'thickness_z':thinnest_material_wall,
+                    'span_angles':[[50.0-10.0, 50.0+10.0],
+                                   [-35.0-10.0, -35.0+10.0],
+                                   [215.0-10.0, 215.0+10.0],
+                                   [-230.0-10.0, -230.0+10.0],
+                                   ],
                     })
         make_versatile_connector({
                                 'num_segments':36*14,
