@@ -164,17 +164,18 @@ all_platters = {
 }
 
 class Part:
-    def __init__(self, strip_verts=None, z1z2=None):
+    def __init__(self, strip_verts=None, z1z2=None, need_endcaps=False):
         self.strip_verts = strip_verts
         self.z1z2 = z1z2
+        self.need_endcaps = need_endcaps
 
     def build(self, gear, platter, fp, collada_model):
         platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
         pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos
         rot = gear.get('rot', 0.0)
-        write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, closed=True)
+        write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, need_endcaps=self.need_endcaps)
         if collada_model is not None:
-            collada_model.add_extruded_tristrip_quad_mesh(material, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, closed=True)
+            collada_model.add_extruded_tristrip_quad_mesh(material, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, need_endcaps=self.need_endcaps)
 
 def get_outer_tooth_shape(num_teeth, pitch_ref):
     original_shape = outer_tooth_shapes_p10[str(num_teeth)]
@@ -499,58 +500,46 @@ def configure_rotor(rotor, geneva):
 def build_one_rotor(rotor, geneva):
     num_segments = 100
     num_verts = 2 * num_segments
-    verts = np.ndarray((num_verts, 3), dtype=np.float64)
-    pin_verts = np.ndarray((num_verts, 3), dtype=np.float64)
-    disc_verts = np.ndarray((num_verts, 3), dtype=np.float64)
+    # verts = np.ndarray((num_verts, 3), dtype=np.float64)
+    # pin_verts = np.ndarray((num_verts, 3), dtype=np.float64)
+    # disc_verts = np.ndarray((num_verts, 3), dtype=np.float64)
     pin_shaft = rotor.get('pin_shaft', None)
     do_base = not rotor.get('no_rotor_base', False)
-    for seg in range(num_segments):
-        t = float(seg) / float(num_segments)
-        theta = t * 2.0 * np.pi
-        sval = np.sin(theta)
-        cval = np.cos(theta)
-        outer_radius = rotor['hub_radius'] - slide_buffer_dist
-        inner_radius = outer_radius - thinnest_material_wall
+    outer_radius = rotor['hub_radius'] - slide_buffer_dist
+    inner_radius = outer_radius - thinnest_material_wall
+    if pin_shaft is not None:
+        inner_radius = pin_shaft
+
+    outer_pin_radius = rotor['pin_radius'] - slide_buffer_dist
+    inner_pin_radius = rotor['pin_radius']  - thinnest_material_wall
+
+    if do_base:
+        outer_disc_radius = 1.0 * rotor['pin_radius'] + rotor['arm_length']
+        inner_disc_radius = outer_disc_radius - thinnest_material_wall
         if pin_shaft is not None:
-            inner_radius = pin_shaft
-        outer_vert_index = seg*2
-        inner_vert_index = outer_vert_index + 1
-        verts[outer_vert_index][0] = outer_radius * sval
-        verts[outer_vert_index][1] = outer_radius * cval
-        verts[outer_vert_index][2] = 0.0
-        verts[inner_vert_index][0] = inner_radius * sval
-        verts[inner_vert_index][1] = inner_radius * cval
-        verts[inner_vert_index][2] = 0.0
+            inner_disc_radius = pin_shaft
 
-        outer_pin_radius = rotor['pin_radius'] - slide_buffer_dist
-        inner_pin_radius = rotor['pin_radius']  - thinnest_material_wall
-        pin_verts[outer_vert_index][0] = rotor['arm_length'] + outer_pin_radius * sval
-        pin_verts[outer_vert_index][1] = outer_pin_radius * cval
-        pin_verts[outer_vert_index][2] = 0.0
-        pin_verts[inner_vert_index][0] = rotor['arm_length'] + inner_pin_radius * sval
-        pin_verts[inner_vert_index][1] = inner_pin_radius * cval
-        pin_verts[inner_vert_index][2] = 0.0
-
-        if do_base:
-            outer_disc_radius = 1.0 * rotor['pin_radius'] + rotor['arm_length']
-            inner_disc_radius = outer_disc_radius - thinnest_material_wall
-            if pin_shaft is not None:
-                inner_disc_radius = pin_shaft
-            disc_verts[outer_vert_index][0] = outer_disc_radius * sval
-            disc_verts[outer_vert_index][1] = outer_disc_radius * cval
-            disc_verts[outer_vert_index][2] = 0.0
-            disc_verts[inner_vert_index][0] = inner_disc_radius * sval
-            disc_verts[inner_vert_index][1] = inner_disc_radius * cval
-            disc_verts[inner_vert_index][2] = 0.0
-
+    contact_angle_radians = np.arccos(rotor['outset'] / rotor['arm_length'])
+    contact_angle_degrees = contact_angle_radians * 180.0 / np.pi
+    angle_range_deg = [90.0 + contact_angle_degrees, 90.0 + 360.0 - contact_angle_degrees]
+    # print('rotor[outset]',rotor['outset'])
+    # print('rotor[arm_length]',rotor['arm_length'])
+    # print('contact_angle_radians',contact_angle_radians)
+    # print('contact_angle_degrees',contact_angle_degrees)
+    hub_verts = make_cylinder_verts(outer_radius - thinnest_material_wall, outer_radius, center=[0.0,0.0,0.0],
+                                    num_segments=num_segments, angle_range_deg=angle_range_deg)
     z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
-    rotor['parts'] += [Part(strip_verts=verts, z1z2=z1z2)]
+    rotor['parts'] += [Part(strip_verts=hub_verts, z1z2=z1z2, need_endcaps=True)]
 
+    pin_verts = make_cylinder_verts(inner_pin_radius, outer_pin_radius, center=[rotor['arm_length'],0.0,0.0],
+                                    num_segments=num_segments)
     z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
     rotor['parts'] += [Part(strip_verts=pin_verts, z1z2=z1z2)]
 
     if do_base:
-        z1z2 = [-1.5 * thinnest_material_wall, -0.5 * thinnest_material_wall]
+        disc_verts = make_cylinder_verts(inner_disc_radius, outer_disc_radius, center=[0.0,0.0,0.0],
+                                        num_segments=num_segments)
+        z1z2 = [-2.0 * thinnest_material_wall, -1.0 * thinnest_material_wall]
         rotor['parts'] += [Part(strip_verts=disc_verts, z1z2=z1z2)]
 
 
@@ -642,7 +631,7 @@ def write_stl_ball_bearing(fp, collada_model, pos):
             write_one_tri(fp, face[0]+pos, face[1]+pos, face[2]+pos)
 
 
-def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=None, closed=True):
+def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=None, need_endcaps=False):
     if pos is None:
         pos = np.array([0,0,0])
     if rot is None:
@@ -653,7 +642,7 @@ def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=No
     xverts = xverts + pos
     num_verts = len(verts)
     num_quads = num_verts >> 1
-    if not closed:
+    if need_endcaps:
         num_quads -= 1
     z1 = np.array([0.0, 0.0, verts_z[1]])
     z2m1 = np.array([0.0, 0.0, verts_z[0] - verts_z[1]])
@@ -672,6 +661,12 @@ def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=No
         write_one_quad(fp, v1b, v0b, v3b, v2b, n=n_down)
         write_one_quad(fp, v0b, v0a, v2b, v2a)
         write_one_quad(fp, v1a, v1b, v3a, v3b)
+        if need_endcaps:
+            if quad == 0:
+                write_one_quad(fp, v1a, v0a, v1b, v0b)
+            elif quad == num_quads - 1:
+                write_one_quad(fp, v2a, v3a, v2b, v3b)
+
 
 def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet_gears_file_name, frame_file_name):
     platter = all_platters[platter_name]
@@ -766,7 +761,7 @@ def make_platter_specs(platter_name):
             p['parts'] = []
 
 
-def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=None):
+def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=None, angle_range_deg=None):
     if num_segments is None:
         num_segments = 100
     num_verts = 2 * num_segments
@@ -774,6 +769,8 @@ def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=No
 
     for seg in range(num_segments):
         t = float(seg) / float(num_segments)
+        if angle_range_deg is not None:
+            t = (angle_range_deg[0] + t * (angle_range_deg[1] - angle_range_deg[0])) / 360.0
         theta = t * 2.0 * np.pi
         sval = np.sin(theta)
         cval = np.cos(theta)
@@ -1603,7 +1600,7 @@ class ColladaModel:
         self.materials.append(mat)
         return mat
 
-    def add_extruded_tristrip_quad_mesh(self, material, verts, verts_z, pos=None, rot=None, closed=True):
+    def add_extruded_tristrip_quad_mesh(self, material, verts, verts_z, pos=None, rot=None, need_endcaps=False):
         num_strip_verts = len(verts)
         num_sections = num_strip_verts >> 1
         num_quads = num_sections << 2
@@ -1713,7 +1710,7 @@ class ColladaModel:
 
 
 def build_all():
-    platters_to_make = ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']
+    platters_to_make = ['Drive', 'Mars']#, 'Luna', 'Venus', 'Mercury']
     for platter_name in platters_to_make:
         make_platter_specs(platter_name)
     for platter_name in platters_to_make:
