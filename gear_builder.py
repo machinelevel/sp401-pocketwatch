@@ -20,13 +20,13 @@ except:
 # All meassurements are in mm
 use_collada = False
 strut_outer_radius = 1.0
-thinnest_material_wall = 0.4
+thinnest_material_wall = 0.8
 spur_teeth_thickness = thinnest_material_wall
-min_material_thickness = 0.4
+min_material_thickness = 0.8
 slide_buffer_dist = 0.1
 spur_tooth_pitch = 2.0
-tooth_lateral_thickness = 0.6  # The thickness of the tooth "hollow" outline
-tooth_rim_thickness = 0.4
+tooth_lateral_thickness = 0.8  # The thickness of the tooth "hollow" outline
+tooth_rim_thickness = 0.8
 geneva_thickness = 1.0
 each_platter_z = tooth_rim_thickness * 2 * 4.0
 geneva_outer_radius = 20.0
@@ -817,10 +817,10 @@ def write_mat(mat_name):
         if parts is not None:
             for part in parts:
                 part.build(gear, platter, fp, None, offset=offset)
-    bearings = gear.get('ball_bearings', None)
-    if bearings is not None:
-        for bearing_pos in bearings:
-            write_stl_ball_bearing(fp, None, pos=bearing_pos + offset)
+        bearings = gear.get('ball_bearings', None)
+        if bearings is not None:
+            for bearing_pos in bearings:
+                write_stl_ball_bearing(fp, None, pos=bearing_pos + offset)
     make_staples(mat, fp)
 
     fp.write('endsolid OpenSCAD_Model\n')
