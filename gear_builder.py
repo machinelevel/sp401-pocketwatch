@@ -162,6 +162,16 @@ all_platters = {
     },
 }
 
+all_mats = {
+    'mat_base': {
+        'parts':[
+            {'platter':'Drive', 'gear':'feet', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Mars', 'gear':'feet', 'offset':[0.0,0.0,0.0]},
+        ],
+    },
+}
+
+
 class Part:
     def __init__(self, strip_verts=None, z1z2=None, need_endcaps=False):
         self.strip_verts = strip_verts
@@ -716,6 +726,29 @@ def write_stl_platter(platter_name, collada_model, drive_gears_file_name, planet
     fp_frame.close()
     # except:
     #     print('Unable to write file', file_name)
+
+
+def write_mat(mat_name):
+    fp = open('./output/'+mat_name+'.stl', 'w')
+    fp.write('solid OpenSCAD_Model\n')
+    mat = all_mats[mat_name]
+    print('Writing mat {}'.format(mat_name))
+    for part in mat['parts']:
+        platter = all_platters[part['platter']]
+        gear = platter['gears'][part['gear']]
+        offset = part['offset']
+
+        parts = gear.get('parts', None)
+        if parts is not None:
+            for part in parts:
+                part.build(gear, platter, fp, None)
+        bearings = gear.get('ball_bearings', None)
+        if bearings is not None:
+            for bearing_pos in bearings:
+                write_stl_ball_bearing(fp, None, pos=bearing_pos)
+
+    fp.write('endsolid OpenSCAD_Model\n')
+    fp.close()
 
 def make_platter_specs(platter_name):
     platter = all_platters[platter_name]
@@ -1836,6 +1869,12 @@ def build_all():
                           './output/platter_{}_frame.stl'.format(platter_name))
     if collada_model is not None:
         collada_model.finish()
+
+    mats_to_make = ['mat_base']
+
+    for mat_name in mats_to_make:
+        write_mat(mat_name)
+
     print_checks()
 
 if __name__ == "__main__":
