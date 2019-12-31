@@ -168,6 +168,8 @@ all_mats = {
             {'platter':'Drive', 'gear':'feet', 'offset':[0.0,0.0,0.0]},
             {'platter':'Mars', 'gear':'feet', 'offset':[0.0,0.0,0.0]},
         ],
+        'staples':[
+        ],
     },
     'mat_drive1': {
         'parts':[
@@ -181,6 +183,8 @@ all_mats = {
             {'platter':'Drive', 'gear':'Ps', 'offset':[-5.0,0.0,0.0]},
             {'platter':'Mars', 'gear':'Da', 'offset':[-5.0,0.0,0.0]},
         ],
+        'staples':[
+        ],
     },
     'mat_mars1': {
         'parts':[
@@ -191,12 +195,55 @@ all_mats = {
             {'platter':'Mars', 'gear':'Ps', 'offset':[-6.0,0.0,0.5]},
 
             {'platter':'Mars', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Mars', 'gear':'Pp0', 'offset':[20.0,-13.0,-2.5]},
-            {'platter':'Mars', 'gear':'Pp1', 'offset':[20.0, 13.0,-2.5]},
+            {'platter':'Mars', 'gear':'Pp0', 'offset':[20.0,-12.0,-2.5]},
+            {'platter':'Mars', 'gear':'Pp1', 'offset':[20.0, 12.0,-2.5]},
+        ],
+        'staples':[
+            {'gear':['Pp0', 'Pp1'], 'azimuth':[180, 0], 'rimrad':[1.0,1.0], 'zoff':[-1.0,-1.0]},
+            {'gear':['Pp0', 'Pr'], 'azimuth':[90, 80],  'rimrad':[1.0,1.0], 'zoff':[-1.0, 0.0]},
+            {'gear':['Pp1', 'Pr'], 'azimuth':[90, 100], 'rimrad':[1.0,1.0], 'zoff':[-1.0, 0.0]},
         ],
     },
 }
 
+def make_staples(mat, fp):
+    mat['staple_parts'] = []
+    for staple in mat['staples']:
+        for part in mat['parts']:
+            if part['gear'] == staple['gear'][0]:
+                part0 = part
+            if part['gear'] == staple['gear'][1]:
+                part1 = part
+        platter0 = all_platters[part0['platter']]
+        platter1 = all_platters[part1['platter']]
+        gear0 = platter0['gears'][part0['gear']]
+        gear1 = platter1['gears'][part1['gear']]
+        pos0 = platter0['pos'] + gear0['pos'] + part0['offset']
+        pos1 = platter1['pos'] + gear1['pos'] + part1['offset']
+        # staple_part = Part(strip_verts=verts, z1z2=[-0.5*thinnest_material_wall, 0.5*thinnest_material_wall], need_endcaps=True)
+
+        r0 = gear0['specs']['radius_inner'] + staple['rimrad'][0] * (gear0['specs']['radius_outer'] - gear0['specs']['radius_inner'])
+        r1 = gear1['specs']['radius_inner'] + staple['rimrad'][1] * (gear1['specs']['radius_outer'] - gear1['specs']['radius_inner'])
+        p0 = np.array([pos0[0] + r0 * np.sin(np.radians(staple['azimuth'][0])),
+                       pos0[1] + r0 * np.cos(np.radians(staple['azimuth'][0])),
+                       pos0[2]])
+        p1 = np.array([pos1[0] + r1 * np.sin(np.radians(staple['azimuth'][1])),
+                       pos1[1] + r1 * np.cos(np.radians(staple['azimuth'][1])),
+                       pos1[2]])
+        yy = normalized(pos1 - pos0)
+        xx = normalized(np.cross(yy, [0.0,0.0,1.0]))
+        hw = 0.5*thinnest_material_wall
+        zh = np.array([0.0, 0.0, thinnest_material_wall])
+        strip_verts = [
+            p0 - (xx * hw) + (zh * staple['zoff'][0]) - (yy * hw),
+            p0 + (xx * hw) + (zh * staple['zoff'][0]) - (yy * hw),
+            p1 - (xx * hw) + (zh * staple['zoff'][1]) + (yy * hw),
+            p1 + (xx * hw) + (zh * staple['zoff'][1]) + (yy * hw),
+        ]
+        z1z2 = [-hw, hw]
+        print('strip_verts', strip_verts)
+        print('z1z2', z1z2)
+        write_stl_tristrip_quads(fp, None, strip_verts, verts_z=z1z2, need_endcaps=True)
 
 class Part:
     def __init__(self, strip_verts=None, z1z2=None, need_endcaps=False):
@@ -770,10 +817,11 @@ def write_mat(mat_name):
         if parts is not None:
             for part in parts:
                 part.build(gear, platter, fp, None, offset=offset)
-        bearings = gear.get('ball_bearings', None)
-        if bearings is not None:
-            for bearing_pos in bearings:
-                write_stl_ball_bearing(fp, None, pos=bearing_pos + offset)
+    bearings = gear.get('ball_bearings', None)
+    if bearings is not None:
+        for bearing_pos in bearings:
+            write_stl_ball_bearing(fp, None, pos=bearing_pos + offset)
+    make_staples(mat, fp)
 
     fp.write('endsolid OpenSCAD_Model\n')
     fp.close()
