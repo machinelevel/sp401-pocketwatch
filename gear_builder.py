@@ -169,6 +169,28 @@ all_mats = {
             {'platter':'Mars', 'gear':'feet', 'offset':[0.0,0.0,0.0]},
         ],
     },
+    'mat_drive1': {
+        'parts':[
+            {'platter':'Drive', 'gear':'Grotor', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'G', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Ps', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Pp0', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Pp1', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Mars', 'gear':'Da', 'offset':[0.0,0.0,0.0]},
+        ],
+    },
+    'mat_mars1': {
+        'parts':[
+            {'platter':'Mars', 'gear':'Db', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Mars', 'gear':'Grotor', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'G', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Ps', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Pp0', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Pp1', 'offset':[0.0,0.0,0.0]},
+        ],
+    },
 }
 
 
@@ -1089,6 +1111,7 @@ def do_platter_adjustments(platter_name):
         connect_rings = [[[rad_in, connect_out],[0, 90, 180, 270]]]
         ring_radius = None
         ring_base_z = platter['base_z']
+        # connect drive Ps axle to Mars Da axle
         make_versatile_connector({
                                 'num_segments':500,
                                 'add_to_platter':'Drive',
@@ -1104,6 +1127,7 @@ def do_platter_adjustments(platter_name):
                                 'ring_func_period':None,
                                 'ring_func':None,
                                 })
+        # connect drive Ps to Mars Da
         make_versatile_connector({
                                 'num_segments':500,
                                 'add_to_platter':'Drive',
@@ -1111,8 +1135,8 @@ def do_platter_adjustments(platter_name):
                                 'center':[0,0,0],
                                 'radius0':all_platters['Drive']['gears']['Ps']['specs']['radius_inner'] - 1.5 * thinnest_material_wall,
                                 'radius1':all_platters['Mars']['gears']['Da']['specs']['radius_inner'] - 1.5 * thinnest_material_wall,
-                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 1.0 * thinnest_material_wall,
-                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.0 * thinnest_material_wall,
+                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] - 0.5 * thinnest_material_wall,
+                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 1.5 * thinnest_material_wall,
                                 'thickness_xy':thinnest_material_wall,
                                 'thickness_z':1.0 * thinnest_material_wall,
                                 'ring_angles':[0, 120, 240],
@@ -1870,7 +1894,7 @@ def build_all():
     if collada_model is not None:
         collada_model.finish()
 
-    mats_to_make = ['mat_base']
+    mats_to_make = all_mats.keys()
 
     for mat_name in mats_to_make:
         write_mat(mat_name)
