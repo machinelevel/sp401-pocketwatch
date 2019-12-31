@@ -63,7 +63,7 @@ all_platters = {
         'gears': {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':27},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':13},
-            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':29, 'outer_rail':3.5},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':29, 'outer_rail':1.5},
             'Grotor' :{'type':'rotor', 'pin_shaft':0.25},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
@@ -71,7 +71,7 @@ all_platters = {
     },
     'Mars': {
         'use_dual_drive': False,
-        'pos': [0.0, 0.0, -1 * each_platter_z],
+        'pos': [0.0, 0.0, -2 * each_platter_z + 6.5 * thinnest_material_wall],
         'planetary_mult': 1,
         'scale_geneva': 0.9,
         'scale_planetary': 2.4,
@@ -163,7 +163,7 @@ all_platters = {
 }
 
 all_mats = {
-    'mat_base': {
+    'mat_base_v2': {
         'parts':[
             {'platter':'Drive', 'gear':'feet', 'offset':[0.0,0.0,0.0]},
             {'platter':'Mars', 'gear':'feet', 'offset':[0.0,0.0,0.0]},
@@ -246,10 +246,11 @@ def make_staples(mat, fp):
         write_stl_tristrip_quads(fp, None, strip_verts, verts_z=z1z2, need_endcaps=True)
 
 class Part:
-    def __init__(self, strip_verts=None, z1z2=None, need_endcaps=False):
+    def __init__(self, strip_verts=None, z1z2=None, need_endcaps=False, enforce_thickness=False):
         self.strip_verts = strip_verts
         self.z1z2 = z1z2
         self.need_endcaps = need_endcaps
+        self.enforce_thickness = enforce_thickness
 
     def build(self, gear, platter, fp, collada_model, offset=None):
         platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
@@ -257,7 +258,8 @@ class Part:
             offset = [0.0, 0.0, 0.0]
         pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos + offset
         rot = gear.get('rot', 0.0)
-        write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, need_endcaps=self.need_endcaps)
+        write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot,
+                                 need_endcaps=self.need_endcaps, enforce_thickness=self.enforce_thickness)
         if collada_model is not None:
             collada_model.add_extruded_tristrip_quad_mesh(material, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, need_endcaps=self.need_endcaps)
 
@@ -480,9 +482,10 @@ def make_geneva_tooth_table(gear, rotor):
     r = gear['specs']['radius_ref']
     total_tooth_theta = 2.0 * np.pi / num_teeth
     num_segments = 20
+    pin_rad = rotor['pin_radius'] + 1.0 * slide_buffer_dist
     groove_bottom_radius = r - in_sign * (rotor['arm_length'] - rotor['outset'])
 #    groove_bottom_radius = r - 0.1
-    groove_half_width = rotor['pin_radius']
+    groove_half_width = pin_rad
     groove_half_theta_inner = np.arctan(groove_half_width/groove_bottom_radius)
     groove_half_theta_outer = np.arctan(groove_half_width/r)
     result_radius = []
@@ -493,8 +496,8 @@ def make_geneva_tooth_table(gear, rotor):
     for seg in range(1, small_curve_segs):
         t = float(seg) / float(small_curve_segs)
         theta = np.radians(t * 90)
-        x = rotor['pin_radius'] * np.sin(theta)
-        y = groove_bottom_radius - in_sign * rotor['pin_radius'] * np.cos(theta)
+        x = pin_rad * np.sin(theta)
+        y = groove_bottom_radius - in_sign * pin_rad * np.cos(theta)
         result_radius += [y]
         result_theta += [np.arctan(x/y)]
 
@@ -730,7 +733,8 @@ def write_stl_ball_bearing(fp, collada_model, pos):
             write_one_tri(fp, face[0]+pos, face[1]+pos, face[2]+pos)
 
 
-def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=None, need_endcaps=False):
+def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=None,
+                             need_endcaps=False, enforce_thickness=False):
     if pos is None:
         pos = np.array([0,0,0])
     if rot is None:
@@ -747,15 +751,36 @@ def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=No
     z2m1 = np.array([0.0, 0.0, verts_z[0] - verts_z[1]])
     n_up = np.array([0.0, 0.0, 1])
     n_down = np.array([0.0, 0.0, -1])
+
+    if enforce_thickness:
+        thickness = abs(verts_z[0] - verts_z[1])
+        low_xverts = []
+        for i,v in enumerate(xverts):
+            v_fwd = xverts[(i+2)%num_verts] - v
+            v_back = xverts[(i+num_verts-2)%num_verts] - v
+            v_side = xverts[i^1] - v
+            d = normalized(normalized(np.cross(v_back, v_side)) + normalized(np.cross(v_side, v_fwd)))
+            if not i&1:
+                d = -d
+            low_xverts.append(v + d * thickness)
+
     for quad in range(num_quads):
+        # top verts
         v0a = xverts[quad * 2] + z1
         v1a = xverts[quad * 2 + 1] + z1
         v2a = xverts[(quad * 2 + 2) % num_verts] + z1
         v3a = xverts[(quad * 2 + 3) % num_verts] + z1
-        v0b = v0a + z2m1
-        v1b = v1a + z2m1
-        v2b = v2a + z2m1
-        v3b = v3a + z2m1
+        if enforce_thickness:
+            v0b = low_xverts[quad * 2] + z1
+            v1b = low_xverts[quad * 2 + 1] + z1
+            v2b = low_xverts[(quad * 2 + 2) % num_verts] + z1
+            v3b = low_xverts[(quad * 2 + 3) % num_verts] + z1
+        else:
+            # bottom verts
+            v0b = v0a + z2m1
+            v1b = v1a + z2m1
+            v2b = v2a + z2m1
+            v3b = v3a + z2m1
         write_one_quad(fp, v0a, v1a, v2a, v3a, n=n_up)
         write_one_quad(fp, v1b, v0b, v3b, v2b, n=n_down)
         write_one_quad(fp, v0b, v0a, v2b, v2a)
@@ -954,6 +979,8 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_r
     bearing_center = axle1_pos + (0.0, 0.0, 0.5 * (axle1_top + axle1_bottom) + platter['pos'][2])
     placement_radius = axle1_out - 0.5 * ball_bearing_radius
     bearing_count = int(2.0 * np.pi * placement_radius / (4 * ball_bearing_radius))
+    if bearing_count < 4:
+        bearing_count = 4
     add_ball_bearings(feet, count = bearing_count, center=bearing_center, placement_radius=placement_radius)
 
     # make the axle bottom-rest
@@ -972,6 +999,8 @@ def make_gear_hub_shaft(platter_name, gear, strut_bottom, strut_top, do_bottom_r
         bearing_center = axle1_pos + (0.0, 0.0, axle2_top - 0.5 * ball_bearing_radius + platter['pos'][2])
         placement_radius = gear['specs']['radius_inner'] - 2.0 * ball_bearing_radius
         bearing_count = int(2.0 * np.pi * placement_radius / (4 * ball_bearing_radius))
+        if bearing_count < 4:
+            bearing_count = 4
         add_ball_bearings(feet, count = bearing_count, center=bearing_center, placement_radius=placement_radius)
 
     # Struts
@@ -1014,7 +1043,6 @@ def make_platter_supports(platter_name):
     support_platter_name = platter['support_platter']
     support_platter = all_platters.get(support_platter_name, None)
     base_clearance = 2.0 * spur_teeth_thickness
-    base_z = platter['pos'][2] - base_clearance
 
     platter['base_ring_radius'] = length(platter['gears']['Pp0']['pos']) * platter.get('scale_base_ring_radius', 1.0)
 
@@ -1039,9 +1067,9 @@ def set_platter_base(platter_name):
     if platter_name == 'Drive':
         platter['base_z'] = drive_drop
     elif platter_name == 'Mars':
-        platter['base_z'] = drive_drop - each_platter_z
+        platter['base_z'] = drive_drop - platter['pos'][2] + all_platters['Drive']['pos'][2]
     elif platter_name == 'Luna':
-        platter['base_z'] = drive_drop - 2 * each_platter_z
+        platter['base_z'] = drive_drop + platter['pos'][2] - all_platters['Drive']['pos'][2]
     else:
         platter['base_z'] = -2.0
 
@@ -1172,9 +1200,9 @@ def do_platter_adjustments(platter_name):
                                 'add_to_part':'feet',
                                 'center':[0,0,0],
                                 'radius0':all_platters['Drive']['gears']['Ps']['axle_radius'] - 1.5 * thinnest_material_wall,
-                                'radius1':all_platters['Mars']['gears']['Da']['axle_radius'] - 1.5 * thinnest_material_wall,
-                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 1.0 * thinnest_material_wall,
-                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.0 * thinnest_material_wall,
+                                'radius1':all_platters['Mars']['gears']['Da']['axle_radius'] - 1.75 * thinnest_material_wall,
+                                'z0':all_platters['Drive']['gears']['Ps']['pos'][2] + 0.5 * thinnest_material_wall,
+                                'z1':all_platters['Mars']['gears']['Da']['pos'][2] + all_platters['Mars']['pos'][2] - all_platters['Drive']['pos'][2] - 0.85 * thinnest_material_wall,
                                 'thickness_xy':thinnest_material_wall,
                                 'thickness_z':1.0 * thinnest_material_wall,
                                 'ring_angles':[0, 120, 240],
@@ -1562,7 +1590,7 @@ def make_base_ring(platter_name, ring_radius, ring_base_z,
 
                 riser_verts.append(v + [0.0, 0.0, riser_height * rise])
 
-            feet['parts'] += [Part(strip_verts=riser_verts, z1z2=[ring_bottom, ring_top])]
+            feet['parts'] += [Part(strip_verts=riser_verts, z1z2=[ring_bottom, ring_top], enforce_thickness=True)]
 
     ###################################
     ## This section is old and should be deleted
