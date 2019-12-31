@@ -171,24 +171,28 @@ all_mats = {
     },
     'mat_drive1': {
         'parts':[
-            {'platter':'Drive', 'gear':'Grotor', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Grotor', 'offset':[16.0,0.0,1.0]},
+            {'platter':'Drive', 'gear':'Pp0', 'offset':[7.0,-6.0,0.0]},
+            {'platter':'Drive', 'gear':'Pp1', 'offset':[7.0,6.0,0.0]},
+
             {'platter':'Drive', 'gear':'G', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'Ps', 'offset':[0.0,0.0,0.0]},
             {'platter':'Drive', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'Pp0', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'Pp1', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Mars', 'gear':'Da', 'offset':[0.0,0.0,0.0]},
+
+            {'platter':'Drive', 'gear':'Ps', 'offset':[-5.0,0.0,0.0]},
+            {'platter':'Mars', 'gear':'Da', 'offset':[-5.0,0.0,0.0]},
         ],
     },
     'mat_mars1': {
         'parts':[
-            {'platter':'Mars', 'gear':'Db', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Mars', 'gear':'Grotor', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'G', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'Ps', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'Pp0', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Drive', 'gear':'Pp1', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Mars', 'gear':'Db',     'offset':[11.5,0.0,0.5]},
+            {'platter':'Mars', 'gear':'Grotor', 'offset':[11.5,0.0,0.5]},
+
+            {'platter':'Mars', 'gear':'G',  'offset':[-6.0,0.0,0.5]},
+            {'platter':'Mars', 'gear':'Ps', 'offset':[-6.0,0.0,0.5]},
+
+            {'platter':'Mars', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
+            {'platter':'Mars', 'gear':'Pp0', 'offset':[20.0,-13.0,-2.5]},
+            {'platter':'Mars', 'gear':'Pp1', 'offset':[20.0, 13.0,-2.5]},
         ],
     },
 }
@@ -200,9 +204,11 @@ class Part:
         self.z1z2 = z1z2
         self.need_endcaps = need_endcaps
 
-    def build(self, gear, platter, fp, collada_model):
+    def build(self, gear, platter, fp, collada_model, offset=None):
         platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
-        pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos
+        if offset is None:
+            offset = [0.0, 0.0, 0.0]
+        pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos + offset
         rot = gear.get('rot', 0.0)
         write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, need_endcaps=self.need_endcaps)
         if collada_model is not None:
@@ -763,11 +769,11 @@ def write_mat(mat_name):
         parts = gear.get('parts', None)
         if parts is not None:
             for part in parts:
-                part.build(gear, platter, fp, None)
+                part.build(gear, platter, fp, None, offset=offset)
         bearings = gear.get('ball_bearings', None)
         if bearings is not None:
             for bearing_pos in bearings:
-                write_stl_ball_bearing(fp, None, pos=bearing_pos)
+                write_stl_ball_bearing(fp, None, pos=bearing_pos + offset)
 
     fp.write('endsolid OpenSCAD_Model\n')
     fp.close()
