@@ -82,12 +82,12 @@ all_platters = {
         'gears': {
             'G'      :{'type':'geneva', 'inout':'in', 'teeth':28, 'inner_rail':1.0},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':1.0, 'ring_over':1.0},
-            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':3.5, 'ring_over':1.0},
+            'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':1.5, 'ring_over':1.0},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':None},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
-            'Grotor' :{'type':'rotor', 'no_rotor_base':True, 'outset_mult':0.5},
+            'Grotor' :{'type':'rotor', 'no_rotor_base':True, 'outset_mult':0.5, 'hub_radius_mult':0.8},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -595,7 +595,7 @@ def configure_rotor(rotor, geneva):
     rotor['outset'] = geneva['specs']['pitch_ref'] * 0.2       # displacement from rim of G
     rotor['outset'] *= rotor.get('outset_mult', 1.0)
     rotor['arm_length'] = np.sqrt((geneva['specs']['pitch_ref'] / 2.0) * (geneva['specs']['pitch_ref'] / 2.0) + rotor['outset'] * rotor['outset'])
-    rotor['hub_radius'] = rotor['arm_length'] * 0.6   # radius of the hub
+    rotor['hub_radius'] = rotor['arm_length'] * 0.6 * rotor.get('hub_radius_mult', 1.0)   # radius of the hub
     rotor['pin_radius'] = rotor['arm_length'] * 0.2   # radius of the driver pin
     rotor['shaft_radius'] = rotor['hub_radius'] * 0.1   # radius of the shaft
 
@@ -1411,7 +1411,34 @@ def do_platter_adjustments(platter_name):
         # Connect Mars geneva to Ps
         gearG = all_platters['Mars']['gears']['G']
         gearPs = all_platters['Mars']['gears']['Ps']
+        gearPr = all_platters['Mars']['gears']['Pr']
         rotor = all_platters['Mars']['gears']['Grotor']
+
+        # planet Pr gem posts
+        make_simple_cylinder({
+                    'add_to_platter':'Mars',
+                    'add_to_part':'Pr',
+                    'center':[gearPr['specs']['radius_outer'] + 1.0 * thinnest_material_wall,
+                              0.0,
+                              3.0 * thinnest_material_wall],
+                    'radius':0.26 * thinnest_material_wall,
+                    'thickness_xy':thinnest_material_wall,
+                    'thickness_z':6.0 * thinnest_material_wall,
+                    'span_angles':None,
+                    })
+        make_simple_cylinder({
+                    'add_to_platter':'Mars',
+                    'add_to_part':'Pr',
+                    'center':[-(gearPr['specs']['radius_outer'] + 1.0 * thinnest_material_wall),
+                              0.0,
+                              0.5 * thinnest_material_wall],
+                    'radius':0.26 * thinnest_material_wall,
+                    'thickness_xy':thinnest_material_wall,
+                    'thickness_z':1.0 * thinnest_material_wall,
+                    'span_angles':None,
+                    })
+
+
         # outer G rim
         g_rim_pos = [0.0, 0.0, 2.0*thinnest_material_wall]
         ps_rim_pos = gearPs['pos'] - gearG['pos'] - [0.0, 0.0, 2.0*thinnest_material_wall]
@@ -1494,7 +1521,7 @@ def do_platter_adjustments(platter_name):
                                 'center':[0,0,0],
                                 'radius1':gearG['specs']['radius_ref'] + rotor['outset'],
                                 'radius0':gearG['specs']['radius_outer'] + 0.5 * thinnest_material_wall,
-                                'z1':g_rim_pos[2],
+                                'z1':g_rim_pos[2] - 0.5 * thinnest_material_wall,
                                 'z0':0.0,
                                 'thickness_xy':thinnest_material_wall,
                                 'thickness_z':thinnest_material_wall,
