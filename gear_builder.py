@@ -87,7 +87,7 @@ all_platters = {
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':None},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
-            'Grotor' :{'type':'rotor', 'no_rotor_base':True, 'outset_mult':0.5, 'hub_radius_mult':0.8},
+            'Grotor' :{'type':'rotor', 'no_rotor_base':False, 'outset_mult':0.5, 'hub_radius_mult':0.8},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -188,20 +188,28 @@ all_mats = {
     },
     'mat_mars1': {
         'parts':[
-            {'platter':'Mars', 'gear':'Db',     'offset':[11.5,0.0,0.5]},
-            {'platter':'Mars', 'gear':'Grotor', 'offset':[11.5,0.0,0.5]},
+            {'platter':'Mars', 'gear':'Db',     'offset':[65.0,0.0,5.5]},
+            {'platter':'Mars', 'gear':'Grotor', 'offset':[65.0,0.0,5.5]},
 
-            {'platter':'Mars', 'gear':'G',  'offset':[-6.0,0.0,0.5]},
-            {'platter':'Mars', 'gear':'Ps', 'offset':[-6.0,0.0,0.5]},
+            {'platter':'Mars', 'gear':'G',  'offset':[0.0,0.0,4.0]},
+            {'platter':'Mars', 'gear':'Ps', 'offset':[0.0,0.0,4.0]},
 
             {'platter':'Mars', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
-            {'platter':'Mars', 'gear':'Pp0', 'offset':[20.0,-12.0,-2.5]},
-            {'platter':'Mars', 'gear':'Pp1', 'offset':[20.0, 12.0,-2.5]},
+            {'platter':'Mars', 'gear':'Pp0', 'offset':[36.0,-1.0,0.5]},
+            {'platter':'Mars', 'gear':'Pp1', 'offset':[36.0, 1.0,0.5]},
         ],
         'staples':[
-            {'gear':['Pp0', 'Pp1'], 'azimuth':[180, 0], 'rimrad':[1.0,1.0], 'zoff':[-1.0,-1.0]},
-            {'gear':['Pp0', 'Pr'], 'azimuth':[90, 80],  'rimrad':[1.0,1.0], 'zoff':[-1.0, 0.0]},
-            {'gear':['Pp1', 'Pr'], 'azimuth':[90, 100], 'rimrad':[1.0,1.0], 'zoff':[-1.0, 0.0]},
+            {'gear':['Pp0', 'Db'], 'azimuth':[135, -15], 'rimrad':[0.9,1.0], 'zoff':[-1.0,0.0]},
+            {'gear':['Pp1', 'Db'], 'azimuth':[45, 180+15], 'rimrad':[0.9,1.0], 'zoff':[-1.0,0.0]},
+            {'gear':['Pp0', 'Pr'], 'azimuth':[180+80, 55],  'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
+            {'gear':['Pp1', 'Pr'], 'azimuth':[0-60, 120], 'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
+            {'gear':['Pr', 'Db'], 'azimuth':[80, -70], 'rimrad':[1.5,1.0], 'zoff':[0.0,0.0]},
+            {'gear':['Pr', 'Db'], 'azimuth':[100, -110], 'rimrad':[1.5,1.0], 'zoff':[0.0,0.0]},
+
+            {'gear':['G', 'Pr'], 'azimuth':[0, 0], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[90, 90], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[180, 180], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[270, 270], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
         ],
     },
 }
@@ -222,16 +230,23 @@ def make_staples(mat, fp):
         pos1 = platter1['pos'] + gear1['pos'] + part1['offset']
         # staple_part = Part(strip_verts=verts, z1z2=[-0.5*thinnest_material_wall, 0.5*thinnest_material_wall], need_endcaps=True)
 
+        # print('gear0[specs][radius_inner]',gear0['specs']['radius_inner'])
+        # print('gear0[specs][radius_outer]',gear0['specs']['radius_outer'])
+        # print('gear0[specs][radius_ref]',gear0['specs']['radius_ref'])
         r0 = gear0['specs']['radius_inner'] + staple['rimrad'][0] * (gear0['specs']['radius_outer'] - gear0['specs']['radius_inner'])
         r1 = gear1['specs']['radius_inner'] + staple['rimrad'][1] * (gear1['specs']['radius_outer'] - gear1['specs']['radius_inner'])
         p0 = np.array([pos0[0] + r0 * np.sin(np.radians(staple['azimuth'][0])),
                        pos0[1] + r0 * np.cos(np.radians(staple['azimuth'][0])),
                        pos0[2]])
+        # print('p0',p0)
         p1 = np.array([pos1[0] + r1 * np.sin(np.radians(staple['azimuth'][1])),
                        pos1[1] + r1 * np.cos(np.radians(staple['azimuth'][1])),
                        pos1[2]])
-        yy = normalized(pos1 - pos0)
+        # print('p1',p1)
+        yy = normalized(p1 - p0)
+        # print('yy',yy)
         xx = normalized(np.cross(yy, [0.0,0.0,1.0]))
+        # print('xx',xx)
         hw = 0.5*thinnest_material_wall
         zh = np.array([0.0, 0.0, thinnest_material_wall])
         strip_verts = [
@@ -241,8 +256,8 @@ def make_staples(mat, fp):
             p1 + (xx * hw) + (zh * staple['zoff'][1]) + (yy * hw),
         ]
         z1z2 = [-hw, hw]
-        print('strip_verts', strip_verts)
-        print('z1z2', z1z2)
+        # print('strip_verts', strip_verts)
+        # print('z1z2', z1z2)
         write_stl_tristrip_quads(fp, None, strip_verts, verts_z=z1z2, need_endcaps=True)
 
 class Part:
@@ -647,6 +662,7 @@ def build_one_rotor(rotor, geneva):
 
 def normalized(v):
     return v / np.linalg.norm(v)
+
 def length(v):
     return np.linalg.norm(v)
 
