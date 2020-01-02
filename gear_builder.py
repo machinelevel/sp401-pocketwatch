@@ -173,17 +173,27 @@ all_mats = {
     },
     'mat_drive1': {
         'parts':[
-            {'platter':'Drive', 'gear':'Grotor', 'offset':[16.0,0.0,1.0]},
-            {'platter':'Drive', 'gear':'Pp0', 'offset':[7.0,-6.0,0.0]},
-            {'platter':'Drive', 'gear':'Pp1', 'offset':[7.0,6.0,0.0]},
+            {'platter':'Drive', 'gear':'Grotor', 'offset':[18.5,9.0,2.0]},
+            {'platter':'Drive', 'gear':'Pp0', 'offset':[6.0,-5.5,0.0]},
+            {'platter':'Drive', 'gear':'Pp1', 'offset':[6.0,5.5,0.0], 'rot':22.5},
 
             {'platter':'Drive', 'gear':'G', 'offset':[0.0,0.0,0.0]},
             {'platter':'Drive', 'gear':'Pr', 'offset':[0.0,0.0,0.0]},
 
-            {'platter':'Drive', 'gear':'Ps', 'offset':[-5.0,0.0,0.0]},
-            {'platter':'Mars', 'gear':'Da', 'offset':[-5.0,0.0,0.0]},
+            {'platter':'Drive', 'gear':'Ps', 'offset':[-6.0,0.0,-2.5]},
+            {'platter':'Mars', 'gear':'Da', 'offset':[-6.0,0.0,-2.5]},
         ],
         'staples':[
+            {'gear':['Grotor', 'Pr'], 'azimuth':[-45, -25], 'rimrad':[1.0,0.0], 'zoff':[-1.9,0.0]},
+            {'gear':['Grotor', 'Da'], 'azimuth':[180+60, 0], 'rimrad':[1.0,1.0], 'zoff':[-1.9,0.0]},
+            {'gear':['Grotor', 'Pp0'], 'azimuth':[90+30, -65], 'rimrad':[1.0,1.0], 'zoff':[-1.9,0.1]},
+            {'gear':['Da', 'Pr'], 'azimuth':[-65, -75], 'rimrad':[1.0,0.0], 'zoff':[0.0,0.0]},
+            {'gear':['Da', 'Pr'], 'azimuth':[-130, -112], 'rimrad':[1.0,0.0], 'zoff':[0.0,0.0]},
+
+            {'gear':['Pr', 'Pp0'], 'azimuth':[38, 22.5], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.0]},
+            {'gear':['Pr', 'Pp1'], 'azimuth':[90+58, 185-22.5], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.0]},
+            {'gear':['Da', 'Pp1'], 'azimuth':[100, -60.0], 'rimrad':[1.0,1.0], 'zoff':[0.0,0.0]},
+            {'gear':['Pp0', 'Pp1'], 'azimuth':[160, 30.0], 'rimrad':[1.0,1.0], 'zoff':[0.0,0.0]},
         ],
     },
     'mat_mars1': {
@@ -267,12 +277,14 @@ class Part:
         self.need_endcaps = need_endcaps
         self.enforce_thickness = enforce_thickness
 
-    def build(self, gear, platter, fp, collada_model, offset=None):
+    def build(self, gear, platter, fp, collada_model, offset=None, rot_add=None):
         platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
         if offset is None:
             offset = [0.0, 0.0, 0.0]
+        if rot_add is None:
+            rot_add = 0.0
         pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos + offset
-        rot = gear.get('rot', 0.0)
+        rot = gear.get('rot', 0.0) + rot_add
         write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot,
                                  need_endcaps=self.need_endcaps, enforce_thickness=self.enforce_thickness)
         if collada_model is not None:
@@ -630,6 +642,9 @@ def build_one_rotor(rotor, geneva):
     outer_pin_radius = rotor['pin_radius'] - slide_buffer_dist
     inner_pin_radius = rotor['pin_radius']  - thinnest_material_wall
 
+    rotor['specs']['radius_inner'] = rotor['hub_radius'] - slide_buffer_dist
+    rotor['specs']['radius_outer'] = 1.0 * rotor['pin_radius'] + rotor['arm_length']
+
     if do_base:
         outer_disc_radius = 1.0 * rotor['pin_radius'] + rotor['arm_length']
         inner_disc_radius = outer_disc_radius - thinnest_material_wall
@@ -849,15 +864,16 @@ def write_mat(mat_name):
     fp.write('solid OpenSCAD_Model\n')
     mat = all_mats[mat_name]
     print('Writing mat {}'.format(mat_name))
-    for part in mat['parts']:
-        platter = all_platters[part['platter']]
-        gear = platter['gears'][part['gear']]
-        offset = part['offset']
+    for mpart in mat['parts']:
+        platter = all_platters[mpart['platter']]
+        gear = platter['gears'][mpart['gear']]
+        offset = mpart['offset']
+        rot = mpart.get('rot', None)
 
         parts = gear.get('parts', None)
         if parts is not None:
             for part in parts:
-                part.build(gear, platter, fp, None, offset=offset)
+                part.build(gear, platter, fp, None, offset=offset, rot_add=rot)
         bearings = gear.get('ball_bearings', None)
         if bearings is not None:
             for bearing_pos in bearings:
