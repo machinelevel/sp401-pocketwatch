@@ -171,7 +171,7 @@ all_mats = {
         'staples':[
         ],
     },
-    'mat_drive1': {
+    'mat_drive_v2': {
         'parts':[
             {'platter':'Drive', 'gear':'Grotor', 'offset':[18.5,9.0,2.0]},
             {'platter':'Drive', 'gear':'Pp0', 'offset':[6.0,-5.5,0.0]},
@@ -196,7 +196,7 @@ all_mats = {
             {'gear':['Pp0', 'Pp1'], 'azimuth':[160, 30.0], 'rimrad':[1.0,1.0], 'zoff':[0.0,0.0]},
         ],
     },
-    'mat_mars1': {
+    'mat_mars_v2': {
         'parts':[
             {'platter':'Mars', 'gear':'Db',     'offset':[65.0,0.0,5.5]},
             {'platter':'Mars', 'gear':'Grotor', 'offset':[65.0,0.0,5.5]},
@@ -271,11 +271,12 @@ def make_staples(mat, fp):
         write_stl_tristrip_quads(fp, None, strip_verts, verts_z=z1z2, need_endcaps=True)
 
 class Part:
-    def __init__(self, strip_verts=None, z1z2=None, need_endcaps=False, enforce_thickness=False):
+    def __init__(self, strip_verts=None, z1z2=None, need_endcaps=False, enforce_thickness=False, is_solid=False):
         self.strip_verts = strip_verts
         self.z1z2 = z1z2
         self.need_endcaps = need_endcaps
         self.enforce_thickness = enforce_thickness
+        self.is_solid = is_solid
 
     def build(self, gear, platter, fp, collada_model, offset=None, rot_add=None):
         platter_pos = np.array(platter.get('pos', [0.0, 0.0, 0.0]))
@@ -286,7 +287,7 @@ class Part:
         pos = gear.get('pos', [0.0, 0.0, 0.0]) + platter_pos + offset
         rot = gear.get('rot', 0.0) + rot_add
         write_stl_tristrip_quads(fp, collada_model, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot,
-                                 need_endcaps=self.need_endcaps, enforce_thickness=self.enforce_thickness)
+                                 need_endcaps=self.need_endcaps, enforce_thickness=self.enforce_thickness, is_solid=self.is_solid)
         if collada_model is not None:
             collada_model.add_extruded_tristrip_quad_mesh(material, self.strip_verts, verts_z=self.z1z2, pos=pos, rot=rot, need_endcaps=self.need_endcaps)
 
@@ -640,7 +641,7 @@ def build_one_rotor(rotor, geneva):
         inner_radius = pin_shaft
 
     outer_pin_radius = rotor['pin_radius'] - slide_buffer_dist
-    inner_pin_radius = rotor['pin_radius']  - thinnest_material_wall
+    inner_pin_radius = 0.0
 
     rotor['specs']['radius_inner'] = rotor['hub_radius'] - slide_buffer_dist
     rotor['specs']['radius_outer'] = 1.0 * rotor['pin_radius'] + rotor['arm_length']
@@ -666,7 +667,7 @@ def build_one_rotor(rotor, geneva):
     pin_verts = make_cylinder_verts(inner_pin_radius, outer_pin_radius, center=[rotor['arm_length'],0.0,0.0],
                                     num_segments=num_segments)
     z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
-    rotor['parts'] += [Part(strip_verts=pin_verts, z1z2=z1z2)]
+    rotor['parts'] += [Part(strip_verts=pin_verts, z1z2=z1z2, is_solid=True)]
 
     if do_base:
         disc_verts = make_cylinder_verts(inner_disc_radius, outer_disc_radius, center=[0.0,0.0,0.0],
@@ -765,7 +766,7 @@ def write_stl_ball_bearing(fp, collada_model, pos):
 
 
 def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=None,
-                             need_endcaps=False, enforce_thickness=False):
+                             need_endcaps=False, enforce_thickness=False, is_solid=False):
     if pos is None:
         pos = np.array([0,0,0])
     if rot is None:
@@ -795,6 +796,13 @@ def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=No
                 d = -d
             low_xverts.append(v + d * thickness)
 
+    if is_solid:
+        vca = xverts[1] + z1
+        if enforce_thickness:
+            vcb = low_xverts[1] + z1
+        else:
+            vcb = vca + z2m1
+
     for quad in range(num_quads):
         # top verts
         v0a = xverts[quad * 2] + z1
@@ -812,10 +820,15 @@ def write_stl_tristrip_quads(fp, collada_model, verts, verts_z, pos=None, rot=No
             v1b = v1a + z2m1
             v2b = v2a + z2m1
             v3b = v3a + z2m1
-        write_one_quad(fp, v0a, v1a, v2a, v3a, n=n_up)
-        write_one_quad(fp, v1b, v0b, v3b, v2b, n=n_down)
-        write_one_quad(fp, v0b, v0a, v2b, v2a)
-        write_one_quad(fp, v1a, v1b, v3a, v3b)
+        if is_solid:
+            write_one_tri(fp, v0a, vca, v2a, n=n_up)
+            write_one_tri(fp, vcb, v0b, v2b, n=n_down)
+            write_one_quad(fp, v0b, v0a, v2b, v2a)
+        else:
+            write_one_quad(fp, v0a, v1a, v2a, v3a, n=n_up)
+            write_one_quad(fp, v1b, v0b, v3b, v2b, n=n_down)
+            write_one_quad(fp, v0b, v0a, v2b, v2a)
+            write_one_quad(fp, v1a, v1b, v3a, v3b)
         if need_endcaps:
             if quad == 0:
                 write_one_quad(fp, v1a, v0a, v1b, v0b)
@@ -946,6 +959,10 @@ def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=No
         num_segments = 100
     num_verts = 2 * num_segments
     verts = np.ndarray((num_verts, 3), dtype=np.float64)
+    if inner_radius <= 0.0:
+        is_solid = True
+    else:
+        is_solid = False
 
     for seg in range(num_segments):
         t = float(seg) / float(num_segments)
@@ -959,8 +976,12 @@ def make_cylinder_verts(inner_radius, outer_radius, center=None, num_segments=No
         verts[outer_vert_index][0] = outer_radius * sval
         verts[outer_vert_index][1] = outer_radius * cval
         verts[outer_vert_index][2] = 0.0
-        verts[inner_vert_index][0] = inner_radius * sval
-        verts[inner_vert_index][1] = inner_radius * cval
+        if is_solid:
+            verts[inner_vert_index][0] = 0.0
+            verts[inner_vert_index][1] = 0.0
+        else:
+            verts[inner_vert_index][0] = inner_radius * sval
+            verts[inner_vert_index][1] = inner_radius * cval
         verts[inner_vert_index][2] = 0.0
 
         if center is not None:
@@ -1137,6 +1158,7 @@ def make_versatile_connector(plan):
     ring_func_period = plan['ring_func_period']
     ring_func = plan['ring_func']
     zdiff = plan['z1'] - plan['z0']
+    do_fix_inner = True
     if ring_func is not None:
         # sine-wave connector
         ring_verts = make_cylinder_verts(ring_in, ring_out, num_segments=plan['num_segments'])
@@ -1154,10 +1176,21 @@ def make_versatile_connector(plan):
                 else:
                     wave = -1.0
             elif ring_func == 'dual_spokes':
-                if tt > 0.4 and tt < 0.6:
-                    wave = 1.0
-                else:
-                    wave = -1.0
+                do_fix_inner = False
+                wave = -1.0
+                if (i & 1) == 0: # Outer verts only
+                    if tt > 0.23 and tt < 0.37:
+                        wave = 1.0
+                    if tt > 0.63 and tt < 0.77:
+                        wave = 1.0
+            elif ring_func == 'dual_spokes2':
+                do_fix_inner = False
+                wave = -1.0
+                if (i & 1) == 0: # Outer verts only
+                    if tt > 0.26 and tt < 0.37:
+                        wave = 1.0
+                    if tt > 0.63 and tt < 0.74:
+                        wave = 1.0
             sval = np.sin(theta)
             cval = np.cos(theta)
             rv[0] += radius_wave * sval * wave
@@ -1173,7 +1206,8 @@ def make_versatile_connector(plan):
             rv[0] -= xy_offset
             rv[2] += (0.5 + (0.5 * sval)) * zdiff + plan['z0']
 
-    fix_inner_ring_verts(ring_verts, plan['thickness_xy'])
+    if do_fix_inner:
+        fix_inner_ring_verts(ring_verts, plan['thickness_xy'])
 
     for ring_angle in plan['ring_angles']:
         sval = np.sin(np.radians(ring_angle))
@@ -1198,9 +1232,13 @@ def make_simple_cylinder(plan):
     thickness_z = plan['thickness_z']
     ring_in = radius - 0.5 * plan['thickness_xy']
     ring_out = radius + 0.5 * plan['thickness_xy']
+    is_solid = plan.get('is_solid', False)
+    if is_solid or ring_in <= 0.0:
+        ring_in = 0.0
+        is_solid = True
     if plan['span_angles'] is None:
         ring_verts = make_cylinder_verts(ring_in, ring_out, center=center)
-        part['parts'] += [Part(strip_verts=ring_verts, z1z2=[-0.5 * thickness_z, 0.5 * thickness_z])]
+        part['parts'] += [Part(strip_verts=ring_verts, z1z2=[-0.5 * thickness_z, 0.5 * thickness_z], is_solid=is_solid)]
     else:
         for sa in plan['span_angles']:
             nsegs = int(500.0 * (sa[1] - sa[0]) / 360.0)
@@ -1530,20 +1568,22 @@ def do_platter_adjustments(platter_name):
                                    [-230.0-10.0, -230.0+10.0],
                                    ],
                     })
+        # spokes reach out from Ps toward G
         make_versatile_connector({
                                 'num_segments':36*14,
                                 'add_to_platter':'Mars',
                                 'add_to_part':'G',
                                 'center':[0,0,0],
-                                'radius0':gearG['specs']['radius_ref'] + rotor['outset'],
+                                'radius0':gearG['specs']['radius_ref'] + rotor['outset'] - 1.0 * thinnest_material_wall,
                                 'radius1':gearPs['specs']['radius_inner'] - thinnest_material_wall,
                                 'z0':g_rim_pos[2],
                                 'z1':ps_rim_pos[2],
-                                'thickness_xy':thinnest_material_wall,
+                                'thickness_xy':1.5 * thinnest_material_wall,
                                 'thickness_z':thinnest_material_wall,
                                 'ring_angles':[0],
                                 'ring_func_period':14,
                                 'ring_func':'dual_spokes',
+                                'enforce_thickness':True,
                                 })
         # spokes reach down to the G rim
         make_versatile_connector({
@@ -1551,15 +1591,33 @@ def do_platter_adjustments(platter_name):
                                 'add_to_platter':'Mars',
                                 'add_to_part':'G',
                                 'center':[0,0,0],
-                                'radius1':gearG['specs']['radius_ref'] + rotor['outset'],
-                                'radius0':gearG['specs']['radius_outer'] + 0.5 * thinnest_material_wall,
-                                'z1':g_rim_pos[2] - 0.5 * thinnest_material_wall,
+                                'radius1':gearG['specs']['radius_ref'] + rotor['outset'] + 0.5 * thinnest_material_wall, # inner/upper
+                                'radius0':gearG['specs']['radius_outer'] + 1.8 * thinnest_material_wall, # outer/lower
+                                'z1':g_rim_pos[2] + 0.0 * thinnest_material_wall,
                                 'z0':0.0,
-                                'thickness_xy':thinnest_material_wall,
+                                'thickness_xy':0.1 * thinnest_material_wall,
                                 'thickness_z':thinnest_material_wall,
                                 'ring_angles':[0],
                                 'ring_func_period':14,
-                                'ring_func':'dual_spokes',
+                                'ring_func':'dual_spokes2',
+                                'enforce_thickness':True,
+                                })
+        # same spokes reach down to the G rim but thicken them
+        make_versatile_connector({
+                                'num_segments':36*14,
+                                'add_to_platter':'Mars',
+                                'add_to_part':'G',
+                                'center':[0,0,0],
+                                'radius1':gearG['specs']['radius_ref'] + rotor['outset'] - 0.5 * thinnest_material_wall, # inner/upper
+                                'radius0':gearG['specs']['radius_outer'] + 1.1 * thinnest_material_wall, # outer/lower
+                                'z1':g_rim_pos[2] + 0.0 * thinnest_material_wall,
+                                'z0':0.0,
+                                'thickness_xy':0.1 * thinnest_material_wall,
+                                'thickness_z':thinnest_material_wall,
+                                'ring_angles':[0],
+                                'ring_func_period':14,
+                                'ring_func':'dual_spokes2',
+                                'enforce_thickness':True,
                                 })
 
     elif platter_name in ['Venus', 'Mercury']:
