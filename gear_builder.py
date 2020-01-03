@@ -2008,7 +2008,7 @@ class ColladaModel:
 
 
 def build_all():
-    platters_to_make = ['Drive', 'Mars']#, 'Luna', 'Venus', 'Mercury']
+    platters_to_make = ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']
     for platter_name in platters_to_make:
         make_platter_specs(platter_name)
     for platter_name in platters_to_make:
