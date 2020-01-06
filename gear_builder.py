@@ -64,7 +64,7 @@ all_platters = {
             'G'      :{'type':'geneva', 'inout':'out', 'teeth':27},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':13},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':29, 'outer_rail':1.5},
-            'Grotor' :{'type':'rotor', 'pin_shaft':0.25},
+            'Grotor' :{'type':'rotor', 'pin_shaft':0.25, 'need_pin_cap':True},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -87,7 +87,7 @@ all_platters = {
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':26, 'outer_rail':None},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(26 * 0.33)},
-            'Grotor' :{'type':'rotor', 'no_rotor_base':False, 'outset_mult':0.5, 'hub_radius_mult':0.8},
+            'Grotor' :{'type':'rotor', 'no_rotor_base':False, 'outset_mult':0.5, 'hub_radius_mult':0.8, 'need_pin_cap':False},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -109,7 +109,7 @@ all_platters = {
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':13, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(13 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(13 * 0.33)},
-            'Grotor' :{'type':'rotor'},
+            'Grotor' :{'type':'rotor', 'need_pin_cap':False},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -132,7 +132,7 @@ all_platters = {
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':38, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(38 * 0.33)},
-            'Grotor' :{'type':'rotor'},
+            'Grotor' :{'type':'rotor', 'need_pin_cap':False},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -155,7 +155,7 @@ all_platters = {
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':23, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(23 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(23 * 0.33)},
-            'Grotor' :{'type':'rotor'},
+            'Grotor' :{'type':'rotor', 'need_pin_cap':False},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -171,7 +171,7 @@ all_mats = {
         'staples':[
         ],
     },
-    'mat_drive_v2': {
+    'mat_drive_v4': {
         'parts':[
             {'platter':'Drive', 'gear':'Grotor', 'offset':[18.5,9.0,2.0]},
             {'platter':'Drive', 'gear':'Pp0', 'offset':[6.0,-5.5,0.0]},
@@ -187,16 +187,34 @@ all_mats = {
             {'gear':['Grotor', 'Pr'], 'azimuth':[-45, -25], 'rimrad':[1.0,0.0], 'zoff':[-1.9,0.0]},
             {'gear':['Grotor', 'Da'], 'azimuth':[180+60, 0], 'rimrad':[1.0,1.0], 'zoff':[-1.9,0.0]},
             {'gear':['Grotor', 'Pp0'], 'azimuth':[90+30, -65], 'rimrad':[1.0,1.0], 'zoff':[-1.9,0.1]},
+            # more staples requested by SW
+            {'gear':['Pr', 'Pp0'], 'azimuth':[-25+38, -65+45], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.1]},
+            {'gear':['Grotor', 'Pr'], 'azimuth':[-45+90, -25+38], 'rimrad':[1.0,0.0], 'zoff':[-1.9,0.0]},
+
             {'gear':['Da', 'Pr'], 'azimuth':[-65, -75], 'rimrad':[1.0,0.0], 'zoff':[0.0,0.0]},
             {'gear':['Da', 'Pr'], 'azimuth':[-130, -112], 'rimrad':[1.0,0.0], 'zoff':[0.0,0.0]},
+            # more staples requested by SW
+            {'gear':['Da', 'Pr'], 'azimuth':[-130-65, -112-62], 'rimrad':[1.0,0.0], 'zoff':[0.0,0.0]},
+            {'gear':['Da', 'Pr'], 'azimuth':[-130-65, -112-62+26], 'rimrad':[1.0,0.0], 'zoff':[0.0,0.0]},
+            {'gear':['Ps', 'Pr'], 'azimuth':[-130-65+1, -112-62+26], 'rimrad':[1.0,0.0], 'zoff':[0.1,0.0]}, # Ps is lower Da
+            {'gear':['Pp0', 'Ps'], 'azimuth':[160+45-45, 100.0-15], 'rimrad':[1.25,1.0], 'zoff':[0.0,0.1]}, # Ps is lower Da
+            {'gear':['Ps', 'Pr'], 'azimuth':[0, -25], 'rimrad':[1.0,0.0], 'zoff':[0.1,0.0]}, # Ps is lower Da
 
             {'gear':['Pr', 'Pp0'], 'azimuth':[38, 22.5], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.0]},
             {'gear':['Pr', 'Pp1'], 'azimuth':[90+58, 185-22.5], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.0]},
             {'gear':['Da', 'Pp1'], 'azimuth':[100, -60.0], 'rimrad':[1.0,1.0], 'zoff':[0.0,0.0]},
             {'gear':['Pp0', 'Pp1'], 'azimuth':[160, 30.0], 'rimrad':[1.0,1.0], 'zoff':[0.0,0.0]},
+            # more staples requested by SW
+            {'gear':['Pp0', 'Pp1'], 'azimuth':[160+45, 30.0-45], 'rimrad':[1.0,1.0], 'zoff':[0.0,0.0]},
+            {'gear':['Pp0', 'Da'], 'azimuth':[160+45, 100.0], 'rimrad':[1.25,1.0], 'zoff':[0.0,0.0]},
+            {'gear':['Pr', 'Pp1'], 'azimuth':[38+48, 22.5], 'rimrad':[0.0,1.5], 'zoff':[0.0,0.0]},
+            {'gear':['Pr', 'Pp0'], 'azimuth':[38+37, 22.5+90], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.0]},
+            {'gear':['Pr', 'Pp1'], 'azimuth':[90+58-37, 185-22.5-90], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.0]},
+            # more staples requested by SW
+            {'gear':['Pr', 'Pp1'], 'azimuth':[-112-62, 22.5+90+95], 'rimrad':[0.0,1.0], 'zoff':[0.0,0.0]},
         ],
     },
-    'mat_mars_v2': {
+    'mat_mars_v3': {
         'parts':[
             {'platter':'Mars', 'gear':'Db',     'offset':[65.0,0.0,5.5]},
             {'platter':'Mars', 'gear':'Grotor', 'offset':[65.0,0.0,5.5]},
@@ -211,8 +229,18 @@ all_mats = {
         'staples':[
             {'gear':['Pp0', 'Db'], 'azimuth':[135, -15], 'rimrad':[0.9,1.0], 'zoff':[-1.0,0.0]},
             {'gear':['Pp1', 'Db'], 'azimuth':[45, 180+15], 'rimrad':[0.9,1.0], 'zoff':[-1.0,0.0]},
+            # more staples requested by SW
+            {'gear':['Pp0', 'Db'], 'azimuth':[135+35, -15-26], 'rimrad':[0.9,1.0], 'zoff':[-1.0,0.0]},
+            {'gear':['Pp1', 'Db'], 'azimuth':[45-35, 180+15+26], 'rimrad':[0.9,1.0], 'zoff':[-1.0,0.0]},
+
             {'gear':['Pp0', 'Pr'], 'azimuth':[180+80, 55],  'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
             {'gear':['Pp1', 'Pr'], 'azimuth':[0-60, 120], 'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
+            # more staples requested by SW
+            {'gear':['Pp0', 'Pr'], 'azimuth':[180+80-55, 55+20],  'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
+            {'gear':['Pp1', 'Pr'], 'azimuth':[0-60-45, 120+20], 'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
+            {'gear':['Pp0', 'Pr'], 'azimuth':[180+80+45, 55-20],  'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
+            {'gear':['Pp1', 'Pr'], 'azimuth':[0-60+45, 120-20], 'rimrad':[0.9,1.5], 'zoff':[-1.0, 0.0]},
+
             {'gear':['Pr', 'Db'], 'azimuth':[80, -70], 'rimrad':[1.5,1.0], 'zoff':[0.0,0.0]},
             {'gear':['Pr', 'Db'], 'azimuth':[100, -110], 'rimrad':[1.5,1.0], 'zoff':[0.0,0.0]},
 
@@ -220,6 +248,15 @@ all_mats = {
             {'gear':['G', 'Pr'], 'azimuth':[90, 90], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
             {'gear':['G', 'Pr'], 'azimuth':[180, 180], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
             {'gear':['G', 'Pr'], 'azimuth':[270, 270], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            # more staples requested by SW
+            {'gear':['G', 'Pr'], 'azimuth':[0+30, 0+30], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[90+30, 90+30], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[180+30, 180+30], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[270+30, 270+30], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[0+60, 0+60], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[90+60, 90+60], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[180+60, 180+60], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
+            {'gear':['G', 'Pr'], 'azimuth':[270+60, 270+60], 'rimrad':[1.095,0.01], 'zoff':[0.0, 1.0]},
         ],
     },
 }
@@ -664,10 +701,16 @@ def build_one_rotor(rotor, geneva):
     z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
     rotor['parts'] += [Part(strip_verts=hub_verts, z1z2=z1z2, need_endcaps=True)]
 
-    pin_verts = make_cylinder_verts(inner_pin_radius, outer_pin_radius, center=[rotor['arm_length'],0.0,0.0],
-                                    num_segments=num_segments)
+    pin_verts = make_cylinder_verts(inner_pin_radius, outer_pin_radius, center=[rotor['arm_length'],0.0,0.0], num_segments=num_segments)
     z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
     rotor['parts'] += [Part(strip_verts=pin_verts, z1z2=z1z2, is_solid=True)]
+    if rotor['need_pin_cap']:
+        x1 = -outer_radius
+        x2 = rotor['arm_length'] + outer_pin_radius
+        xc = 0.5 * (x1 + x2)
+        pin_cap_verts = make_cylinder_verts(x2 - xc - thinnest_material_wall, x2 - xc, center=[xc,0.0,0.0], num_segments=num_segments)
+        z1z2 = [0.6 * thinnest_material_wall, 1.6 * thinnest_material_wall]
+        rotor['parts'] += [Part(strip_verts=pin_cap_verts, z1z2=z1z2, is_solid=False)]
 
     if do_base:
         disc_verts = make_cylinder_verts(inner_disc_radius, outer_disc_radius, center=[0.0,0.0,0.0],
