@@ -96,20 +96,20 @@ all_platters = {
         'use_dual_drive': False,
         'pos': [0.0, 0.0, 0 * each_platter_z],
         'planetary_mult': 1,
-        'scale_geneva': 0.75,
-        'scale_planetary': 1.0,
+        'scale_geneva': 0.55,
+        'scale_planetary': 1.2,
         'support_platter':None,
         'rotor_azimuth':180,
         'scale_base_ring_radius':1.0,
         'gears': {
-            'G'      :{'type':'geneva', 'inout':'out', 'teeth':7*2},
-            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':30, 'inner_rail':0},
-            'Pp0'    :{'type':'spur',   'inout':'out', 'teeth':37, 'p_placement':(0.0 * np.pi, 0), 'roll_to':(90, 'Ps')},
-            'Da'     :{'type':'spur',   'inout':'out', 'teeth':23*2},
+            'G'      :{'type':'geneva', 'inout':'out', 'teeth':7},
+            'Ps'     :{'type':'spur',   'inout':'out', 'teeth':30//2, 'inner_rail':0},
+            'Pp0'    :{'type':'spur',   'inout':'out', 'teeth':37, 'p_placement':(0.0 * np.pi, 0), 'roll_to':(0, 'Ps')},
+            'Da'     :{'type':'spur',   'inout':'out', 'teeth':23},
             'Db'     :{'type':'spur',   'inout':'out', 'teeth':13, 'outer_rail':1},
             'Dr1'     :{'type':'spur',   'inout':'out', 'teeth':int(13 * 0.33)},
             'Dr2'     :{'type':'spur',   'inout':'out', 'teeth':int(13 * 0.33)},
-            'Grotor' :{'type':'rotor', 'need_pin_cap':False},
+            'Grotor' :{'type':'rotor', 'need_pin_cap':False, 'dual_rotor':True},
             'feet'   :{'type':'feet'},
             'shaft'  :{'type':'shaft'},
         },
@@ -672,6 +672,7 @@ def build_one_rotor(rotor, geneva):
     # disc_verts = np.ndarray((num_verts, 3), dtype=np.float64)
     pin_shaft = rotor.get('pin_shaft', None)
     do_base = not rotor.get('no_rotor_base', False)
+    dual_rotor = rotor.get('dual_rotor', False)
     outer_radius = rotor['hub_radius'] - slide_buffer_dist
     inner_radius = outer_radius - thinnest_material_wall
     if pin_shaft is not None:
@@ -691,26 +692,38 @@ def build_one_rotor(rotor, geneva):
 
     contact_angle_radians = np.arccos(rotor['outset'] / rotor['arm_length'])
     contact_angle_degrees = contact_angle_radians * 180.0 / np.pi
-    angle_range_deg = [90.0 + contact_angle_degrees, 90.0 + 360.0 - contact_angle_degrees]
-    # print('rotor[outset]',rotor['outset'])
-    # print('rotor[arm_length]',rotor['arm_length'])
-    # print('contact_angle_radians',contact_angle_radians)
-    # print('contact_angle_degrees',contact_angle_degrees)
-    hub_verts = make_cylinder_verts(outer_radius - thinnest_material_wall, outer_radius, center=[0.0,0.0,0.0],
-                                    num_segments=num_segments, angle_range_deg=angle_range_deg)
-    z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
-    rotor['parts'] += [Part(strip_verts=hub_verts, z1z2=z1z2, need_endcaps=True)]
+    if dual_rotor:
+        angle_range_deg = [90.0 + contact_angle_degrees, 90.0 + 180.0 - contact_angle_degrees]
+        for span_index in range(2):
+            hub_verts = make_cylinder_verts(outer_radius - thinnest_material_wall, outer_radius, center=[0.0,0.0,0.0],
+                                            num_segments=num_segments, angle_range_deg=angle_range_deg)
+            z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
+            rotor['parts'] += [Part(strip_verts=hub_verts, z1z2=z1z2, need_endcaps=True)]
+            angle_range_deg[0] += 180.0
+            angle_range_deg[1] += 180.0
+    else:
+        angle_range_deg = [90.0 + contact_angle_degrees, 90.0 + 360.0 - contact_angle_degrees]
+        hub_verts = make_cylinder_verts(outer_radius - thinnest_material_wall, outer_radius, center=[0.0,0.0,0.0],
+                                        num_segments=num_segments, angle_range_deg=angle_range_deg)
+        z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
+        rotor['parts'] += [Part(strip_verts=hub_verts, z1z2=z1z2, need_endcaps=True)]
 
-    pin_verts = make_cylinder_verts(inner_pin_radius, outer_pin_radius, center=[rotor['arm_length'],0.0,0.0], num_segments=num_segments)
-    z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
-    rotor['parts'] += [Part(strip_verts=pin_verts, z1z2=z1z2, is_solid=True)]
-    if rotor['need_pin_cap']:
-        x1 = -outer_radius
-        x2 = rotor['arm_length'] + outer_pin_radius
-        xc = 0.5 * (x1 + x2)
-        pin_cap_verts = make_cylinder_verts(x2 - xc - thinnest_material_wall, x2 - xc, center=[xc,0.0,0.0], num_segments=num_segments)
-        z1z2 = [0.6 * thinnest_material_wall, 1.6 * thinnest_material_wall]
-        rotor['parts'] += [Part(strip_verts=pin_cap_verts, z1z2=z1z2, is_solid=False)]
+    pin_sign = 1.0
+    num_pins = 1
+    if dual_rotor:
+        num_pins = 2
+    for pin_index in range(num_pins):
+        pin_verts = make_cylinder_verts(inner_pin_radius, outer_pin_radius, center=[pin_sign * rotor['arm_length'],0.0,0.0], num_segments=num_segments)
+        z1z2 = [-2.0 * thinnest_material_wall, 1.0 * spur_teeth_thickness]
+        rotor['parts'] += [Part(strip_verts=pin_verts, z1z2=z1z2, is_solid=True)]
+        if rotor['need_pin_cap']:
+            x1 = -outer_radius
+            x2 = rotor['arm_length'] + outer_pin_radius
+            xc = pin_sign * 0.5 * (x1 + x2)
+            pin_cap_verts = make_cylinder_verts(x2 - xc - thinnest_material_wall, x2 - xc, center=[xc,0.0,0.0], num_segments=num_segments)
+            z1z2 = [0.6 * thinnest_material_wall, 1.6 * thinnest_material_wall]
+            rotor['parts'] += [Part(strip_verts=pin_cap_verts, z1z2=z1z2, is_solid=False)]
+        pin_sign *= -1.0
 
     if do_base:
         disc_verts = make_cylinder_verts(inner_disc_radius, outer_disc_radius, center=[0.0,0.0,0.0],
