@@ -2156,5 +2156,41 @@ def build_all():
 
     print_checks()
 
+def triple_check_gear_ratios():
+    result = {}
+    acc = 0.5
+    result['input_days_per_rot'] = acc    # hour hand
+    acc *= all_platters['Drive']['gears']['G']['teeth']
+    drive_G_days = acc
+    acc *= all_platters['Drive']['gears']['Ps']['teeth']
+    acc /= all_platters['Drive']['gears']['Pr']['teeth']
+    drive_Ps_days = acc
+    result['main_drive_shaft_days'] = acc
+
+    acc = result['main_drive_shaft_days']
+    acc /= all_platters['Luna']['gears']['Da']['teeth']
+    acc *= all_platters['Luna']['gears']['Db']['teeth']
+    acc /= 2 # dual G rotor
+    acc *= all_platters['Luna']['gears']['G']['teeth']
+    acc /= all_platters['Luna']['gears']['Ps']['teeth']
+    acc *= all_platters['Luna']['gears']['Pp0']['teeth']
+    result['Luna_sydonic_period_days'] = (acc, 'desired: 29.53058')
+
+    acc = result['main_drive_shaft_days']
+    acc /= all_platters['Mars']['gears']['Da']['teeth']
+    acc *= all_platters['Mars']['gears']['Db']['teeth']
+    acc /= 1 # single G rotor
+    acc *= all_platters['Mars']['gears']['G']['teeth']
+    acc /= all_platters['Mars']['gears']['Ps']['teeth']
+    acc *= all_platters['Mars']['gears']['Pr']['teeth']
+    result['Mars_sydonic_period_days'] = (acc, 'desired: 779.96')
+
+    print('---- output actual -----')
+    for key in sorted(result.keys()):
+        print('  {}: {}'.format(key, result[key]))
+
+
 if __name__ == "__main__":
     build_all()
+    triple_check_gear_ratios()
+
