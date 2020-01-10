@@ -1306,7 +1306,41 @@ def do_platter_adjustments(platter_name):
     if platter_name == 'Drive':
         platter['gears']['G']['pos'][2] = platter['gears']['Ps']['pos'][2]
 
-    if platter_name in ['Drive']:
+    if platter_name in ['Luna']:
+        gears = platter['gears']
+        mars_platter = all_platters['Mars']
+        mars_gears = mars_platter['gears']
+        mp0 = mars_gears['Pp0']
+        mp1 = mars_gears['Pp1']
+        mps = mars_gears['Ps']
+        moff = mars_platter['pos'][2] - platter['pos'][2]
+        # support cuffs connect to Mars Pp0 and Pp1
+        cuff_rest_radius = mp0['axle_radius'] - 0.5 * thinnest_material_wall - 0.5 * ball_bearing_radius - slide_buffer_dist
+        cuff_slot_radius = cuff_rest_radius - 1.0 * thinnest_material_wall - slide_buffer_dist
+        cuff_pos = [mp0['pos'] + [0.0, 0.0, moff],
+                    mp1['pos'] + [0.0, 0.0, moff]]
+        for cuff_index, cpos in enumerate(cuff_pos):
+            make_simple_cylinder({
+                        'add_to_platter':'Luna',
+                        'add_to_part':'feet',
+                        'center':cpos + [0.0, 0.0, -1.0 * thinnest_material_wall],
+                        'radius':cuff_slot_radius,
+                        'thickness_xy':thinnest_material_wall,
+                        'thickness_z':4.0 * thinnest_material_wall,
+                        'span_angles':None,
+                        })
+            make_simple_cylinder({
+                        'add_to_platter':'Luna',
+                        'add_to_part':'feet',
+                        'center':cpos + [0.0, 0.0, 1.0 * thinnest_material_wall],
+                        'radius':cuff_rest_radius - 0.25 * thinnest_material_wall,
+                        'thickness_xy':1.5 * thinnest_material_wall,
+                        'thickness_z':1.0 * thinnest_material_wall,
+                        'span_angles':None,
+                        })
+
+
+    elif platter_name in ['Drive']:
         riser_height = None
         riser_plan = None
         riser_rings = None
