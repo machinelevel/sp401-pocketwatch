@@ -32,8 +32,6 @@ each_platter_z = tooth_rim_thickness * 2 * 4.0
 geneva_outer_radius = 20.0
 planet_outer_ref_radius = 15.0
 ball_bearing_radius = 0.5 * thinnest_material_wall
-
-
 strut_outer_radius = 1.0
 strut_inner_radius = strut_outer_radius - thinnest_material_wall
 
@@ -46,8 +44,6 @@ strut_inner_radius = strut_outer_radius - thinnest_material_wall
                  L (-27, 29, 13, 23, 13, -7, 30, 37)]
       error_degrees_per_year [0.2376797302003289, 0.4783273624581241, -0.34284199857996345, 0.6293529646316143]
 """
-
-ball_bearing_faces = None
 
 all_platters = {
     'Drive': {
@@ -80,7 +76,7 @@ all_platters = {
         'rotor_azimuth':-90,
         'scale_base_ring_radius':1.0,
         'gears': {
-            'G'      :{'type':'geneva', 'inout':'in', 'teeth':28, 'inner_rail':1.0},
+            'G'      :{'type':'geneva', 'inout':'in', 'teeth':28},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':19, 'inner_rail':1.0, 'ring_over':1.0},
             'Pr'     :{'type':'spur',   'inout':'in', 'teeth':37, 'outer_rail':1.5, 'ring_over':1.0},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':11},
@@ -102,7 +98,7 @@ all_platters = {
         'rotor_azimuth':180,
         'scale_base_ring_radius':1.0,
         'gears': {
-            'G'      :{'type':'geneva', 'inout':'out', 'teeth':7},
+            'G'      :{'type':'geneva', 'inout':'out', 'teeth':7, 'inner_rail':1.0},
             'Ps'     :{'type':'spur',   'inout':'out', 'teeth':30//2, 'inner_rail':0},
             'Pp0'    :{'type':'spur',   'inout':'out', 'teeth':37, 'p_placement':(0.0 * np.pi, 0), 'roll_to':(0, 'Ps')},
             'Da'     :{'type':'spur',   'inout':'out', 'teeth':23},
@@ -161,6 +157,9 @@ all_platters = {
         },
     },
 }
+
+ball_bearing_faces = None
+
 
 all_mats = {
     'mat_base_v2': {
@@ -947,7 +946,7 @@ def write_mat(mat_name):
         if bearings is not None:
             for bearing_pos in bearings:
                 write_stl_ball_bearing(fp, None, pos=bearing_pos + offset)
-    make_staples(mat, fp)
+#    make_staples(mat, fp)
 
     fp.write('endsolid OpenSCAD_Model\n')
     fp.close()
@@ -1320,6 +1319,7 @@ def do_platter_adjustments(platter_name):
         cuff_pos = [mp0['pos'] + [0.0, 0.0, moff],
                     mp1['pos'] + [0.0, 0.0, moff]]
         for cuff_index, cpos in enumerate(cuff_pos):
+            # deep inner cuff plug
             make_simple_cylinder({
                         'add_to_platter':'Luna',
                         'add_to_part':'feet',
@@ -1338,6 +1338,32 @@ def do_platter_adjustments(platter_name):
                         'thickness_z':1.0 * thinnest_material_wall,
                         'span_angles':None,
                         })
+        # join cuff to center well
+            # make_simple_cylinder({
+            #             'add_to_platter':'Luna',
+            #             'add_to_part':'feet',
+            #             'center':cpos + [0.0, 0.0, 1.0 * thinnest_material_wall],
+            #             'radius':cuff_rest_radius - 0.25 * thinnest_material_wall,
+            #             'thickness_xy':1.5 * thinnest_material_wall,
+            #             'thickness_z':1.0 * thinnest_material_wall,
+            #             'span_angles':None,
+            #             })
+        cuff_dist_from_center = np.sqrt(mp0['pos'][0] * mp0['pos'][0] + mp0['pos'][1] * mp0['pos'][1])
+        make_versatile_connector({
+                                'num_segments':500,
+                                'add_to_platter':'Luna',
+                                'add_to_part':'feet',
+                                'center':[0,0,0],
+                                'radius0':cuff_dist_from_center - (cuff_rest_radius - 0.25 * thinnest_material_wall),
+                                'radius1':gears['G']['specs']['radius_outer'] - 0.0 * thinnest_material_wall,
+                                'z0':cpos[2] + 1.0 * thinnest_material_wall,
+                                'z1':cpos[2] + 1.0 * thinnest_material_wall,
+                                'thickness_xy':thinnest_material_wall,
+                                'thickness_z':1.0 * thinnest_material_wall,
+                                'ring_angles':[90, 270],
+                                'ring_func_period':None,
+                                'ring_func':None,
+                                })
 
 
     elif platter_name in ['Drive']:
@@ -2156,7 +2182,7 @@ class ColladaModel:
 
 
 def build_all():
-    platters_to_make = ['Drive', 'Mars', 'Luna', 'Venus', 'Mercury']
+    platters_to_make = ['Drive', 'Mars', 'Luna']#, 'Venus', 'Mercury']
     for platter_name in platters_to_make:
         make_platter_specs(platter_name)
     for platter_name in platters_to_make:
